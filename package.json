@@ -1,0 +1,82 @@
+{
+  "name": "organizacion-bodega",
+  "version": "1.0.0",
+  "description": "Plataforma de organización de empleados - Bodega",
+  "main": "dist-electron/main.js",
+  "author": "JRNCarrizo",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JRNCarrizo/organizacion-bodega.git"
+  },
+  "homepage": "https://github.com/JRNCarrizo/organizacion-bodega",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build && electron-builder --win --publish never",
+    "build:dir": "tsc && vite build && electron-builder --dir",
+    "build:publish": "tsc && vite build && electron-builder --win --publish always",
+    "preview": "vite preview",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.7.0",
+    "date-fns": "^4.1.0",
+    "electron-log": "^5.4.4",
+    "electron-updater": "^6.8.9",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
+    "pdf-parse": "^2.4.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11",
+    "vite-plugin-electron": "^0.28.8",
+    "vite-plugin-electron-renderer": "^0.14.6"
+  },
+  "build": {
+    "appId": "com.organizacionbodega.app",
+    "productName": "Organización Bodega",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerLanguages": [
+        "es"
+      ],
+      "language": "3082",
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "JRNCarrizo",
+      "repo": "organizacion-bodega",
+      "releaseType": "release"
+    }
+  }
+}
