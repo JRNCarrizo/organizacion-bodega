@@ -239,11 +239,10 @@ export async function exportMealMenuExcel(year: number, month: number): Promise<
     ...Array.from({ length: dayCount }, () => ({ wch: 36 }))
   ]
 
-  const rowHeights: Record<number, { hpt: number }> = { 0: 28 }
-  for (let r = 1; r <= rows.length; r++) {
-    rowHeights[r] = { hpt: 54 }
-  }
-  pedidoSheet['!rows'] = rowHeights
+  pedidoSheet['!rows'] = [
+    { hpt: 28 },
+    ...rows.map(() => ({ hpt: 54 }))
+  ]
 
   XLSX.utils.book_append_sheet(workbook, pedidoSheet, 'Pedido')
   XLSX.utils.book_append_sheet(workbook, platosSheet, 'Menú del mes')

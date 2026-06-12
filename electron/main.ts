@@ -17,7 +17,6 @@ import {
   getMonthlyStats,
   getAllTimeStats,
   saveScheduleDay,
-  deleteAssignmentForDate,
   getScheduleForMonth
 } from './database'
 import { generateMonthlySchedule, deleteDayAndRebalance } from './scheduler'

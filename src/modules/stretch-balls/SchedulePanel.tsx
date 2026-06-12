@@ -84,7 +84,7 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
     setSchedule(sched)
     setAssignments(assigns)
     setDepotSettings(heavy)
-    setEmployees(emps.filter(e => e.active === 1 && e.in_stretch === 1))
+    setEmployees(emps.filter((e: Employee) => e.active === 1 && e.in_stretch === 1))
   }
 
   useEffect(() => { load() }, [year, month, refreshKey])
