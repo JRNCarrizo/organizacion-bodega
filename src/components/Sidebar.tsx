@@ -18,7 +18,7 @@ export default function Sidebar() {
         {!collapsed && (
           <>
             <h1>Organización Bodega</h1>
-            <p>Gestión de bodega</p>
+            <p>Gestión de actividades</p>
           </>
         )}
         <button
@@ -31,31 +31,44 @@ export default function Sidebar() {
         </button>
       </div>
       <nav className="sidebar-nav">
-        <NavLink
-          to="/empleados"
-          className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
-          title="Empleados"
-        >
-          <span className="nav-icon">👥</span>
-          <span className="nav-label">Empleados</span>
-        </NavLink>
-        <NavLink
-          to="/"
-          end
-          className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
-          title="Stretch"
-        >
-          <span className="nav-icon">📦</span>
-          <span className="nav-label">Stretch</span>
-        </NavLink>
-        <NavLink
-          to="/comidas"
-          className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
-          title="Menú de Comidas"
-        >
-          <span className="nav-icon">🍽️</span>
-          <span className="nav-label">Menú de Comidas</span>
-        </NavLink>
+        <div className="sidebar-nav-modules">
+          <NavLink
+            to="/empleados"
+            className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+            title="Empleados"
+          >
+            <span className="nav-icon">👥</span>
+            <span className="nav-label">Empleados</span>
+          </NavLink>
+          <NavLink
+            to="/"
+            end
+            className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+            title="Stretch"
+          >
+            <span className="nav-icon">♻️</span>
+            <span className="nav-label">Stretch</span>
+          </NavLink>
+          <NavLink
+            to="/comidas"
+            className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+            title="Menú de Comidas"
+          >
+            <span className="nav-icon">🍽️</span>
+            <span className="nav-label">Menú de Comidas</span>
+          </NavLink>
+        </div>
+
+        <div className="sidebar-nav-global">
+          <NavLink
+            to="/configuracion"
+            className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+            title="Configuración"
+          >
+            <span className="nav-icon">⚙️</span>
+            <span className="nav-label">Configuración</span>
+          </NavLink>
+        </div>
       </nav>
     </aside>
   )

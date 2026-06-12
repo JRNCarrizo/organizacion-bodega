@@ -5,7 +5,9 @@ import {
   saveScheduleDay,
   getScheduleForMonth,
   deleteAssignmentForDate,
-  hasConfirmedAssignments
+  hasConfirmedAssignments,
+  getStretchHolidaysForMonth,
+  markStretchHoliday
 } from './database'
 
 export interface ScheduleSuggestion {
@@ -36,6 +38,11 @@ export function getWorkingDaysInMonth(year: number, month: number, fromDate?: st
     }
   }
   return days
+}
+
+function getSchedulableDaysInMonth(year: number, month: number, fromDate?: string): string[] {
+  const holidays = new Set(getStretchHolidaysForMonth(year, month))
+  return getWorkingDaysInMonth(year, month, fromDate).filter(date => !holidays.has(date))
 }
 
 function sortEmployees(employees: Employee[]): Employee[] {
@@ -147,7 +154,7 @@ export function generateMonthlySchedule(
   if (activeEmployees.length < 2) return []
 
   const existing = getScheduleForMonth(year, month)
-  const workingDays = getWorkingDaysInMonth(year, month)
+  const workingDays = getSchedulableDaysInMonth(year, month)
   if (workingDays.length === 0) return []
 
   const suggestions: ScheduleSuggestion[] = []
@@ -192,8 +199,8 @@ export function rebalanceFutureSchedule(
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1
   const fromDate = isCurrentMonth ? getTodayString() : undefined
 
-  const allWorkingDays = getWorkingDaysInMonth(year, month)
-  const visibleDays = getWorkingDaysInMonth(year, month, fromDate)
+  const allWorkingDays = getSchedulableDaysInMonth(year, month)
+  const visibleDays = getSchedulableDaysInMonth(year, month, fromDate)
 
   const rebalanceStart = visibleDays.find(d => !locked.has(d) && !hasConfirmedAssignments(d))
   if (!rebalanceStart) return
@@ -251,7 +258,7 @@ export function rebalanceAfterReplacement(
   const activeEmployees = employees.filter(e => e.active === 1 && e.in_stretch === 1)
   if (activeEmployees.length < 2) return
 
-  const workingDays = getWorkingDaysInMonth(year, month)
+  const workingDays = getSchedulableDaysInMonth(year, month)
   if (workingDays.length === 0) return
 
   const locked = new Set<string>()
@@ -298,12 +305,13 @@ export function rebalanceAfterReplacement(
   }
 }
 
-export function deleteDayAndRebalance(
+export function markHolidayAndRebalance(
   employees: Employee[],
   date: string
 ): boolean {
   if (hasConfirmedAssignments(date)) return false
 
+  markStretchHoliday(date)
   deleteAssignmentForDate(date)
 
   const [year, month] = date.split('-').map(Number)
@@ -313,4 +321,12 @@ export function deleteDayAndRebalance(
 
   rebalanceFutureSchedule(employees, year, month, lockedDates)
   return true
+}
+
+/** @deprecated Use markHolidayAndRebalance */
+export function deleteDayAndRebalance(
+  employees: Employee[],
+  date: string
+): boolean {
+  return markHolidayAndRebalance(employees, date)
 }

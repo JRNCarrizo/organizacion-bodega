@@ -119,6 +119,12 @@ function migrateDatabase(database: Database.Database): void {
   if (!employeeColumnNames.has('in_meals')) {
     database.exec('ALTER TABLE employees ADD COLUMN in_meals INTEGER NOT NULL DEFAULT 1')
   }
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS stretch_holidays (
+      date TEXT PRIMARY KEY
+    )
+  `)
 }
 
 export interface DepotSettings {
@@ -409,6 +415,28 @@ export function deleteAssignmentForDate(date: string): boolean {
   const database = initDatabase()
   database.prepare('DELETE FROM stretch_assignments WHERE date = ?').run(date)
   return true
+}
+
+export function getStretchHolidaysForMonth(year: number, month: number): string[] {
+  const database = initDatabase()
+  const monthStr = String(month).padStart(2, '0')
+  const rows = database.prepare(`
+    SELECT date FROM stretch_holidays
+    WHERE date LIKE ?
+    ORDER BY date
+  `).all(`${year}-${monthStr}-%`) as Array<{ date: string }>
+  return rows.map(row => row.date)
+}
+
+export function isStretchHoliday(date: string): boolean {
+  const database = initDatabase()
+  const row = database.prepare('SELECT 1 as ok FROM stretch_holidays WHERE date = ?').get(date) as { ok: number } | undefined
+  return row?.ok === 1
+}
+
+export function markStretchHoliday(date: string): void {
+  const database = initDatabase()
+  database.prepare('INSERT OR IGNORE INTO stretch_holidays (date) VALUES (?)').run(date)
 }
 
 export function getScheduleForMonth(year: number, month: number): StretchScheduleDay[] {

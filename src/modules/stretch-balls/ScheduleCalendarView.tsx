@@ -8,6 +8,7 @@ interface Props {
   schedule: StretchScheduleDay[]
   assignments: StretchAssignment[]
   depotSettings: DepotSettings
+  holidays: string[]
   today: string
 }
 
@@ -93,6 +94,7 @@ export default function ScheduleCalendarView({
   schedule,
   assignments,
   depotSettings,
+  holidays,
   today
 }: Props) {
   const scheduleByDate = useMemo(() => {
@@ -100,6 +102,8 @@ export default function ScheduleCalendarView({
     for (const day of schedule) map.set(day.date, day)
     return map
   }, [schedule])
+
+  const holidaysSet = useMemo(() => new Set(holidays), [holidays])
 
   const cells = useMemo(() => buildCalendarCells(year, month), [year, month])
 
@@ -123,6 +127,7 @@ export default function ScheduleCalendarView({
             }
 
             const daySchedule = scheduleByDate.get(cell.date)
+            const isHoliday = holidaysSet.has(cell.date)
             const weekend = isWeekend(cell.date)
             const isToday = cell.date === today
             const isPast = cell.date < today
@@ -139,7 +144,8 @@ export default function ScheduleCalendarView({
 
             const cellClasses = [
               'schedule-cal-cell',
-              weekend && !daySchedule ? 'schedule-cal-cell--weekend' : '',
+              weekend && !daySchedule && !isHoliday ? 'schedule-cal-cell--weekend' : '',
+              isHoliday ? 'schedule-cal-cell--holiday' : '',
               isToday ? 'schedule-cal-cell--today' : '',
               daySchedule ? 'schedule-cal-cell--scheduled' : '',
               statusClass
@@ -173,6 +179,8 @@ export default function ScheduleCalendarView({
                       )
                     })}
                   </div>
+                ) : isHoliday ? (
+                  <span className="schedule-cal-holiday">Feriado</span>
                 ) : weekend ? (
                   <span className="schedule-cal-off">—</span>
                 ) : null}
@@ -187,6 +195,7 @@ export default function ScheduleCalendarView({
         <span><span className="schedule-legend-dot schedule-legend-dot-light" /> {lightName} (liviano)</span>
         <span><span className="schedule-legend-dot schedule-legend-dot-done" /> Confirmado</span>
         <span><span className="schedule-legend-dot schedule-legend-dot-pending" /> Pendiente</span>
+        <span><span className="schedule-legend-dot schedule-legend-dot-holiday" /> Feriado</span>
       </div>
     </div>
   )

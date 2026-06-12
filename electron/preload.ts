@@ -37,6 +37,8 @@ const api = {
       ipcRenderer.invoke('stretch:getAssignments', year, month),
     getSchedule: (year: number, month: number) =>
       ipcRenderer.invoke('stretch:getSchedule', year, month),
+    getHolidays: (year: number, month: number) =>
+      ipcRenderer.invoke('stretch:getHolidays', year, month),
     recordBalls: (date: string, employeeId: number, depot: number, count: number) =>
       ipcRenderer.invoke('stretch:recordBalls', date, employeeId, depot, count),
     getStats: (year: number, month: number) =>
@@ -51,6 +53,7 @@ const api = {
       depot1EmployeeId: number
     ) => ipcRenderer.invoke('stretch:saveScheduleDay', date, employee1Id, employee2Id, depot1EmployeeId),
     deleteDay: (date: string) => ipcRenderer.invoke('stretch:deleteDay', date),
+    markHoliday: (date: string) => ipcRenderer.invoke('stretch:markHoliday', date),
     replaceAbsent: (date: string, absentEmployeeId: number, replacementEmployeeId: number) =>
       ipcRenderer.invoke('stretch:replaceAbsent', date, absentEmployeeId, replacementEmployeeId),
     exportPdf: (year: number, month: number) =>

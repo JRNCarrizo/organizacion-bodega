@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { DepotSettings } from '../../types'
 import { getDepotName, getDepotWorkloadLabel } from '../../utils/depot'
-import UpdateSection from './UpdateSection'
-
 interface Props {
   onUpdate: () => void
 }
@@ -107,8 +105,6 @@ export default function SettingsPanel({ onUpdate }: Props) {
 
   return (
     <div className="settings-panel">
-      <UpdateSection />
-
       <div className="settings-section">
         <div className="settings-section-header">
           <span className="settings-section-icon">🏭</span>

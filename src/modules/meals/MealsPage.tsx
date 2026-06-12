@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Employee, MealDayView, MealMenuSummary, MealSelectionView } from '../../types'
 import { format, addMonths, subMonths } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -47,6 +47,11 @@ export default function MealsPage() {
   const [exporting, setExporting] = useState<'pdf' | 'excel' | null>(null)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [focusedDayIndex, setFocusedDayIndex] = useState(0)
+  const [gridColumns, setGridColumns] = useState(1)
+  const dayGridRef = useRef<HTMLDivElement>(null)
+  const dayCardRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const keyboardNavRef = useRef(true)
   const { refreshKey } = useAppRefresh()
 
   const year = currentDate.getFullYear()
@@ -133,10 +138,99 @@ export default function MealsPage() {
     }
   }
 
+  const measureGridColumns = useCallback(() => {
+    const grid = dayGridRef.current
+    if (!grid || days.length === 0) {
+      setGridColumns(1)
+      return
+    }
+    const children = Array.from(grid.children) as HTMLElement[]
+    if (children.length < 2) {
+      setGridColumns(1)
+      return
+    }
+    const firstTop = children[0].offsetTop
+    let cols = 1
+    for (let i = 1; i < children.length; i++) {
+      if (children[i].offsetTop === firstTop) cols++
+      else break
+    }
+    setGridColumns(cols)
+  }, [days.length])
+
+  useEffect(() => {
+    setFocusedDayIndex(0)
+  }, [selectedEmployeeId, year, month])
+
+  useEffect(() => {
+    measureGridColumns()
+    window.addEventListener('resize', measureGridColumns)
+    return () => window.removeEventListener('resize', measureGridColumns)
+  }, [measureGridColumns, days])
+
+  useEffect(() => {
+    if (pickerDay || !keyboardNavRef.current) return
+    dayCardRefs.current[focusedDayIndex]?.scrollIntoView({ block: 'nearest', behavior: 'auto' })
+  }, [focusedDayIndex, pickerDay])
+
+  useEffect(() => {
+    if (pickerDay || !selectedEmployee || days.length === 0) return
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') return
+
+      keyboardNavRef.current = true
+
+      switch (event.key) {
+        case 'ArrowRight':
+          event.preventDefault()
+          setFocusedDayIndex(i => (i < days.length - 1 ? i + 1 : i))
+          break
+        case 'ArrowLeft':
+          event.preventDefault()
+          setFocusedDayIndex(i => (i > 0 ? i - 1 : i))
+          break
+        case 'ArrowDown': {
+          event.preventDefault()
+          setFocusedDayIndex(i => {
+            const next = i + gridColumns
+            return next < days.length ? next : i
+          })
+          break
+        }
+        case 'ArrowUp': {
+          event.preventDefault()
+          setFocusedDayIndex(i => {
+            const next = i - gridColumns
+            return next >= 0 ? next : i
+          })
+          break
+        }
+        case 'Enter':
+          event.preventDefault()
+          setPickerDay(days[focusedDayIndex])
+          break
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [pickerDay, selectedEmployee, days, focusedDayIndex, gridColumns])
+
   const handleSelection = async (employeeId: number, date: string, mealOptionId: number) => {
+    const dayIndex = days.findIndex(d => d.date === date)
     await window.api.meals.setSelection(year, month, employeeId, date, mealOptionId)
     await load()
     setPickerDay(null)
+    if (dayIndex >= 0 && dayIndex < days.length - 1) {
+      setFocusedDayIndex(dayIndex + 1)
+    }
+  }
+
+  const openDayPicker = (day: MealDayView, index: number) => {
+    setFocusedDayIndex(index)
+    setPickerDay(day)
   }
 
   return (
@@ -242,11 +336,15 @@ export default function MealsPage() {
                         className={`meals-employee-chip ${isActive ? 'meals-employee-chip-active' : ''} ${isComplete ? 'meals-employee-chip-done' : ''}`}
                         onClick={() => setSelectedEmployeeId(emp.id)}
                       >
-                        <span className="meals-employee-chip-avatar">{getInitials(emp.name)}</span>
-                        <span className="meals-employee-chip-name">{emp.name}</span>
-                        <span className="meals-employee-chip-progress">
-                          {progress.filled}/{progress.total}
+                        <span className="meals-employee-chip-avatar">
+                          {isComplete ? '✓' : getInitials(emp.name)}
                         </span>
+                        <span className="meals-employee-chip-name">{emp.name}</span>
+                        {!isComplete && (
+                          <span className="meals-employee-chip-progress">
+                            {progress.filled}/{progress.total}
+                          </span>
+                        )}
                       </button>
                     )
                   })}
@@ -259,7 +357,12 @@ export default function MealsPage() {
                     <div className="meals-employee-panel-identity">
                       <span className="meals-employee-panel-avatar">{getInitials(selectedEmployee.name)}</span>
                       <div>
-                        <h3>Menú de {selectedEmployee.name}</h3>
+                        <h3>
+                          Menú de {selectedEmployee.name}
+                          {selectedProgress.total > 0 && selectedProgress.filled === selectedProgress.total && (
+                            <span className="meals-panel-complete-badge">✓ Completo</span>
+                          )}
+                        </h3>
                         <p>
                           {selectedProgress.filled} de {selectedProgress.total} días elegidos
                         </p>
@@ -277,15 +380,28 @@ export default function MealsPage() {
                     </div>
                   </div>
 
-                  <div className="meals-day-grid">
-                    {days.map(day => {
+                  <p className="meals-kbd-hint">Flechas para moverte · Enter para elegir el día</p>
+
+                  <div
+                    className="meals-day-grid"
+                    ref={dayGridRef}
+                    onMouseMove={() => { keyboardNavRef.current = false }}
+                  >
+                    {days.map((day, index) => {
                       const selection = selectionMap.get(`${selectedEmployee.id}-${day.date}`)
+                      const isFocused = index === focusedDayIndex && !pickerDay
                       return (
                         <button
                           key={day.id}
+                          ref={el => { dayCardRefs.current[index] = el }}
                           type="button"
-                          className={`meals-day-card meals-day-card-clickable ${selection ? 'meals-day-card-done' : ''}`}
-                          onClick={() => setPickerDay(day)}
+                          className={[
+                            'meals-day-card',
+                            'meals-day-card-clickable',
+                            selection ? 'meals-day-card-done' : '',
+                            isFocused ? 'meals-day-card-focused' : ''
+                          ].filter(Boolean).join(' ')}
+                          onClick={() => openDayPicker(day, index)}
                         >
                           <div className="meals-day-card-header">
                             <span className="meals-day-name">{formatDayHeader(day)}</span>

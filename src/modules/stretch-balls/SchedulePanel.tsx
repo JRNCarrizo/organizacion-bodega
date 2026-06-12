@@ -41,6 +41,9 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
   const [selectedReplacement, setSelectedReplacement] = useState<number>(0)
   const [showPendingDays, setShowPendingDays] = useState(false)
   const [viewMode, setViewMode] = useState<ScheduleViewMode>('list')
+  const [holidays, setHolidays] = useState<string[]>([])
+  const [holidayConfirmDate, setHolidayConfirmDate] = useState<string | null>(null)
+  const [markingHoliday, setMarkingHoliday] = useState(false)
 
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth() + 1
@@ -75,19 +78,38 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
   }, [year, month])
 
   const load = async () => {
-    const [sched, assigns, heavy, emps] = await Promise.all([
-      window.api.stretch.getSchedule(year, month),
-      window.api.stretch.getAssignments(year, month),
-      window.api.settings.getDepotSettings(),
-      window.api.employees.getAll()
-    ])
-    setSchedule(sched)
-    setAssignments(assigns)
-    setDepotSettings(heavy)
-    setEmployees(emps.filter((e: Employee) => e.active === 1 && e.in_stretch === 1))
+    try {
+      const [sched, assigns, heavy, emps, monthHolidays] = await Promise.all([
+        window.api.stretch.getSchedule(year, month),
+        window.api.stretch.getAssignments(year, month),
+        window.api.settings.getDepotSettings(),
+        window.api.employees.getAll(),
+        window.api.stretch.getHolidays(year, month)
+      ])
+      setSchedule(sched)
+      setAssignments(assigns)
+      setDepotSettings(heavy)
+      setEmployees(emps.filter((e: Employee) => e.active === 1 && e.in_stretch === 1))
+      setHolidays(monthHolidays)
+    } catch (err) {
+      console.error(err)
+      setError('Error al cargar turnos. Reiniciá la app si acabás de actualizar.')
+    }
   }
 
   useEffect(() => { load() }, [year, month, refreshKey])
+
+  useEffect(() => {
+    if (!holidayConfirmDate) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !markingHoliday) {
+        event.preventDefault()
+        setHolidayConfirmDate(null)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [holidayConfirmDate, markingHoliday])
 
   const handleExportPdf = async () => {
     setExporting(true)
@@ -186,8 +208,41 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
     return {
       weekday: format(date, 'EEE', { locale: es }),
       day: format(date, 'd'),
-      month: format(date, 'MMM', { locale: es })
+      month: format(date, 'MMM', { locale: es }),
+      full: format(date, "EEEE d 'de' MMMM", { locale: es })
     }
+  }
+
+  const confirmMarkHoliday = async (date: string) => {
+    setMarkingHoliday(true)
+    setError('')
+    setSuccess('')
+    try {
+      if (!window.api.stretch.markHoliday) {
+        setError('Reiniciá la aplicación para activar la función de feriados.')
+        return
+      }
+      const ok = await window.api.stretch.markHoliday(date)
+      if (!ok) {
+        setError('No se puede marcar feriado: ya hay confirmaciones en ese día.')
+        return
+      }
+      setSuccess('Feriado registrado. Ese día no tendrá turno y los siguientes se reacomodaron.')
+      setHolidayConfirmDate(null)
+      await load()
+      onUpdate()
+    } catch (err) {
+      console.error(err)
+      setError('Error al marcar el feriado. Reiniciá la app e intentá de nuevo.')
+    } finally {
+      setMarkingHoliday(false)
+    }
+  }
+
+  const requestMarkHoliday = (date: string) => {
+    setError('')
+    setSuccess('')
+    setHolidayConfirmDate(date)
   }
 
   const depotLabel = (depot: number) => {
@@ -311,21 +366,11 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
           <div className="schedule-day-actions">
             {!hasConfirmedOnDay(day.date) ? (
               <button
+                type="button"
                 className="btn btn-danger btn-sm"
-                onClick={async () => {
-                  if (confirm('¿Eliminar este día? Se reacomodarán los turnos siguientes.')) {
-                    const ok = await window.api.stretch.deleteDay(day.date)
-                    if (!ok) {
-                      setError('No se puede eliminar: ya hay al menos una confirmación en este día.')
-                      return
-                    }
-                    setSuccess('Día eliminado. Los turnos siguientes se reacomodaron automáticamente.')
-                    load()
-                    onUpdate()
-                  }
-                }}
+                onClick={() => requestMarkHoliday(day.date)}
               >
-                Eliminar día
+                Marcar feriado
               </button>
             ) : (
               <span className="day-locked" title="Hay confirmaciones en este día">🔒 Bloqueado</span>
@@ -396,7 +441,57 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
           <strong>Generar turnos</strong> crea el calendario del mes siguiendo la rotación del mes anterior.
           Si alguien <strong>falta</strong>: 1) el reemplazo cubre hoy, 2) el ausente recupera en el próximo turno del reemplazo,
           3) los días siguientes se reacomodan solos. Los días con <strong>Hecho</strong> no se tocan.
+          Para un <strong>feriado</strong> (ej. lunes no laborable), usá <strong>Marcar feriado</strong>: ese día queda sin turno y el resto se acomoda solo.
           Podés confirmar turnos de <strong>días anteriores</strong> cuando no tuviste tiempo de cargarlos.
+        </div>
+      )}
+
+      {holidayConfirmDate && (
+        <div
+          className="meal-modal-overlay"
+          onClick={() => !markingHoliday && setHolidayConfirmDate(null)}
+        >
+          <div
+            className="meal-modal schedule-holiday-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="holiday-modal-title"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="meal-modal-header">
+              <div>
+                <span className="meal-modal-label">Feriado / no laborable</span>
+                <h3 id="holiday-modal-title">{formatDateParts(holidayConfirmDate).full}</h3>
+                <p>Ese día no habrá turno de Stretch. Los días hábiles siguientes se reacomodan solos.</p>
+              </div>
+              <button
+                type="button"
+                className="meal-modal-close"
+                onClick={() => !markingHoliday && setHolidayConfirmDate(null)}
+                aria-label="Cerrar"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="schedule-holiday-modal-actions">
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => confirmMarkHoliday(holidayConfirmDate)}
+                disabled={markingHoliday}
+              >
+                {markingHoliday ? 'Guardando...' : 'Sí, marcar feriado'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setHolidayConfirmDate(null)}
+                disabled={markingHoliday}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -437,6 +532,7 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
           schedule={schedule}
           assignments={assignments}
           depotSettings={depotSettings}
+          holidays={holidays}
           today={today}
         />
       ) : (
