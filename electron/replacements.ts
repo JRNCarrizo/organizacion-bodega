@@ -9,7 +9,7 @@ import {
   initDatabase,
   StretchScheduleDay
 } from './database'
-import { rebalanceAfterReplacement, getWorkingDaysInMonth } from './scheduler'
+import { rebalanceAfterReplacement, getWorkingDaysInMonth, getSchedulableDaysInMonth } from './scheduler'
 
 export interface ReplacementResult {
   success: boolean
@@ -36,12 +36,33 @@ function swapWithDepotCompensation(
 function findCompensationDay(
   schedule: StretchScheduleDay[],
   absenceDate: string,
-  replacementEmployeeId: number
+  replacementEmployeeId: number,
+  schedulableDays: string[]
 ): StretchScheduleDay | null {
-  return schedule.find(
-    d => d.date > absenceDate &&
-      (d.employee1_id === replacementEmployeeId || d.employee2_id === replacementEmployeeId)
-  ) ?? null
+  const scheduleByDate = new Map(schedule.map(d => [d.date, d]))
+
+  for (const date of schedulableDays) {
+    if (date <= absenceDate) continue
+
+    const day = scheduleByDate.get(date)
+    if (!day) continue
+
+    if (day.employee1_id === replacementEmployeeId || day.employee2_id === replacementEmployeeId) {
+      return day
+    }
+  }
+
+  return null
+}
+
+function getBeneficiaryEmployeeId(
+  absentEmployeeId: number,
+  absentAssignment: { is_replacement?: number; original_employee_id?: number | null }
+): number {
+  if (absentAssignment.is_replacement === 1 && absentAssignment.original_employee_id) {
+    return absentAssignment.original_employee_id
+  }
+  return absentEmployeeId
 }
 
 export function replaceAbsentEmployee(
@@ -66,6 +87,7 @@ export function replaceAbsentEmployee(
 
   const absentDepot = absentAssignment.depot
   const completed = absentAssignment.balls_count
+  const beneficiaryId = getBeneficiaryEmployeeId(absentEmployeeId, absentAssignment)
   const database = initDatabase()
 
   // Paso 1: el reemplazo cubre hoy en el mismo depósito
@@ -75,17 +97,18 @@ export function replaceAbsentEmployee(
   database.prepare(`
     INSERT INTO stretch_assignments (date, employee_id, depot, balls_count, original_employee_id, is_replacement)
     VALUES (?, ?, ?, ?, ?, 1)
-  `).run(date, replacementEmployeeId, absentDepot, completed, absentEmployeeId)
+  `).run(date, replacementEmployeeId, absentDepot, completed, beneficiaryId)
 
   const [year, month] = date.split('-').map(Number)
   const schedule = getScheduleForMonth(year, month)
+  const schedulableDays = getSchedulableDaysInMonth(year, month)
 
-  // Paso 2: el ausente recupera en el próximo turno del reemplazo
-  const compensationDay = findCompensationDay(schedule, date, replacementEmployeeId)
+  // Paso 2: quien debe recuperar el turno toma el próximo turno del reemplazo
+  const compensationDay = findCompensationDay(schedule, date, replacementEmployeeId, schedulableDays)
   let swapDate: string | null = null
 
   if (compensationDay) {
-    swapWithDepotCompensation(compensationDay, replacementEmployeeId, absentEmployeeId, absentDepot)
+    swapWithDepotCompensation(compensationDay, replacementEmployeeId, beneficiaryId, absentDepot)
     swapDate = compensationDay.date
   }
 
@@ -93,6 +116,9 @@ export function replaceAbsentEmployee(
   rebalanceAfterReplacement(getStretchEmployees(), year, month, date, swapDate)
 
   const absentName = getEmployeeName(absentEmployeeId)
+  const beneficiaryName = beneficiaryId === absentEmployeeId
+    ? absentName
+    : getEmployeeName(beneficiaryId)
   const replacementName = getEmployeeName(replacementEmployeeId)
   const depotSettings = getDepotSettings()
   const depotName = absentDepot === 1 ? depotSettings.depot1Name : depotSettings.depot2Name
@@ -107,7 +133,9 @@ export function replaceAbsentEmployee(
     return {
       success: true,
       swapDate,
-      message: `${replacementName} cubre hoy a ${absentName}. ${absentName} recupera el ${d}/${m} en ${depotName} (turno de ${replacementName}).${regenNote}`
+      message: beneficiaryId === absentEmployeeId
+        ? `${replacementName} cubre hoy a ${absentName}. ${beneficiaryName} recupera el ${d}/${m} en ${depotName} (turno de ${replacementName}).${regenNote}`
+        : `${replacementName} cubre hoy a ${absentName} (por ${beneficiaryName}). ${beneficiaryName} recupera el ${d}/${m} en ${depotName} (turno de ${replacementName}).${regenNote}`
     }
   }
 
@@ -119,6 +147,8 @@ export function replaceAbsentEmployee(
   return {
     success: true,
     swapDate: null,
-    message: `${replacementName} cubre hoy a ${absentName}.${regenNote} ${absentName} no tenía más turnos este mes — la rotación se compensa al generar el mes siguiente.`
+    message: beneficiaryId === absentEmployeeId
+      ? `${replacementName} cubre hoy a ${absentName}.${regenNote} ${beneficiaryName} no tenía más turnos este mes — la rotación se compensa al generar el mes siguiente.`
+      : `${replacementName} cubre hoy a ${absentName} (por ${beneficiaryName}).${regenNote} ${beneficiaryName} no tenía más turnos este mes — la rotación se compensa al generar el mes siguiente.`
   }
 }

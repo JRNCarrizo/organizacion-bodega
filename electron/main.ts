@@ -12,6 +12,8 @@ import {
   setHeavyDepot,
   getDepotSettings,
   setDepotSettings,
+  getTheme,
+  setTheme,
   getAssignmentsForMonth,
   recordBalls,
   getMonthlyStats,
@@ -27,6 +29,7 @@ import { initMealsSchema, getMealMenu, getMealDays, getMealSelections, setMealSe
 import { importMealMenuPdf } from './meals-import'
 import { exportMealMenuPdf, exportMealMenuExcel } from './meals-export'
 import { bindUpdateWindow, registerUpdaterHandlers, checkForUpdatesOnStartup } from './updater'
+import { showFileInExplorer } from './shell-utils'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -90,6 +93,8 @@ ipcMain.handle('settings:getDepotSettings', () => getDepotSettings())
 ipcMain.handle('settings:setDepotSettings', (_e, settings: { heavyDepot?: number; depot1Name?: string; depot2Name?: string }) =>
   setDepotSettings(settings)
 )
+ipcMain.handle('settings:getTheme', () => getTheme())
+ipcMain.handle('settings:setTheme', (_e, theme: 'dark' | 'light') => setTheme(theme))
 ipcMain.handle('settings:resetSchedule', () => {
   resetAllSchedule()
   return true
@@ -156,3 +161,5 @@ ipcMain.handle('meals:setSelection', (
 })
 ipcMain.handle('meals:exportPdf', (_e, year: number, month: number) => exportMealMenuPdf(year, month))
 ipcMain.handle('meals:exportExcel', (_e, year: number, month: number) => exportMealMenuExcel(year, month))
+
+ipcMain.handle('app:showItemInFolder', (_e, filePath: string) => showFileInExplorer(filePath))

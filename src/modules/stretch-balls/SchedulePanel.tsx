@@ -35,6 +35,7 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
   })
   const [generating, setGenerating] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [lastExportPath, setLastExportPath] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [replacing, setReplacing] = useState<ReplacingState | null>(null)
@@ -100,6 +101,10 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
   useEffect(() => { load() }, [year, month, refreshKey])
 
   useEffect(() => {
+    setLastExportPath(null)
+  }, [year, month])
+
+  useEffect(() => {
     if (!holidayConfirmDate) return
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !markingHoliday) {
@@ -119,6 +124,7 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
       const result = await window.api.stretch.exportPdf(year, month)
       if (result.success) {
         setSuccess(result.message)
+        if (result.filePath) setLastExportPath(result.filePath)
       } else if (result.message !== 'Exportación cancelada.') {
         setError(result.message)
       }
@@ -127,6 +133,17 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
       console.error(err)
     } finally {
       setExporting(false)
+    }
+  }
+
+  const handleOpenExportFolder = async () => {
+    if (!lastExportPath) return
+    setError('')
+    try {
+      const result = await window.api.app.showItemInFolder(lastExportPath)
+      if (!result.success) setError(result.message)
+    } catch {
+      setError('No se pudo abrir la carpeta del archivo exportado.')
     }
   }
 
@@ -292,7 +309,7 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
             <span>{completed ? '✓ Confirmado' : 'Marcar hecho'}</span>
           </label>
 
-          {!isReplacement && !completed && (
+          {!completed && (
             <button
               className="btn btn-secondary btn-sm"
               onClick={() => {
@@ -302,7 +319,7 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
                 setError('')
               }}
             >
-              Faltó
+              Reemplazar
             </button>
           )}
         </div>
@@ -412,6 +429,14 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
             disabled={exporting || schedule.length === 0}
           >
             {exporting ? 'Exportando...' : 'Exportar PDF'}
+          </button>
+          <button
+            className="btn btn-secondary"
+            onClick={handleOpenExportFolder}
+            disabled={!lastExportPath}
+            title={lastExportPath ? 'Abrir carpeta con el PDF exportado' : 'Exportá primero para abrir la carpeta'}
+          >
+            Abrir carpeta
           </button>
         </div>
       </div>

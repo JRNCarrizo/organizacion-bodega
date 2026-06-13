@@ -24,6 +24,7 @@ const CATEGORY_SHORT: Record<string, string> = {
 export interface MealExportResult {
   success: boolean
   message: string
+  filePath?: string
 }
 
 /** Parte el nombre del plato en 2-3 líneas para que entre en cada celda de la tabla. */
@@ -92,7 +93,29 @@ function buildExportData(year: number, month: number) {
   }
 }
 
-/** Excel: empleados en filas, días en columnas. */
+/** Excel y PDF: empleados en filas, días en columnas. */
+function buildEmployeeRowsMatrix(
+  year: number,
+  month: number,
+  daySubset: ReturnType<typeof getMealDays>
+) {
+  const { employees, selectionMap } = buildExportData(year, month)
+  const days = daySubset
+  const charsPerLine = days.length > 12 ? 16 : days.length > 8 ? 20 : days.length > 5 ? 26 : 32
+
+  const headers = ['Empleado', ...days.map(d => formatDayLabel(d.weekday, d.date))]
+  const rows = employees.map(emp => {
+    const row: string[] = [wrapEmployeeName(emp.name)]
+    for (const day of days) {
+      const description = selectionMap.get(`${emp.id}-${day.date}`) ?? ''
+      row.push(description ? wrapDishText(description, charsPerLine, 3) : '—')
+    }
+    return row
+  })
+
+  return { headers, rows }
+}
+
 function buildExcelMatrix(year: number, month: number) {
   const { days, employees, selectionMap, monthName, dayCount } = buildExportData(year, month)
 
@@ -109,22 +132,34 @@ function buildExcelMatrix(year: number, month: number) {
   return { headers, rows, days, monthName, dayCount }
 }
 
-/** PDF: días en filas, empleados en columnas — entra mejor en la página. */
-function buildPdfMatrix(year: number, month: number) {
-  const { days, employees, selectionMap, monthName, dayCount, employeeCount } = buildExportData(year, month)
-  const charsPerLine = employeeCount > 8 ? 22 : employeeCount > 5 ? 28 : 32
+function chunkArray<T>(items: T[], chunkSize: number): T[][] {
+  if (chunkSize <= 0) return [items]
+  const chunks: T[][] = []
+  for (let i = 0; i < items.length; i += chunkSize) {
+    chunks.push(items.slice(i, i + chunkSize))
+  }
+  return chunks.length > 0 ? chunks : [[]]
+}
 
-  const headers = ['Día', ...employees.map(emp => wrapEmployeeName(emp.name))]
-  const rows = days.map(day => {
-    const row: string[] = [formatDayLabel(day.weekday, day.date)]
-    for (const emp of employees) {
-      const description = selectionMap.get(`${emp.id}-${day.date}`) ?? ''
-      row.push(description ? wrapDishText(description, charsPerLine, 3) : '—')
-    }
-    return row
-  })
+function getMaxDaysPerPdfPage(): number {
+  const pageWidth = 297
+  const margin = 8
+  const usableWidth = pageWidth - margin * 2
+  const nameColWidth = 28
+  const minDayColWidth = 21
+  return Math.max(1, Math.floor((usableWidth - nameColWidth) / minDayColWidth))
+}
 
-  return { headers, rows, monthName, dayCount, employeeCount }
+function formatDayRangeLabel(days: Array<{ weekday: string; date: string }>): string {
+  if (days.length === 0) return ''
+  const first = days[0]
+  const last = days[days.length - 1]
+  const [, , d1] = first.date.split('-')
+  const [, , d2] = last.date.split('-')
+  const w1 = first.weekday.slice(0, 3).toLowerCase()
+  const w2 = last.weekday.slice(0, 3).toLowerCase()
+  if (days.length === 1) return `${w1} ${d1}`
+  return `${w1} ${d1} — ${w2} ${d2}`
 }
 
 export async function exportMealMenuPdf(year: number, month: number): Promise<MealExportResult> {
@@ -133,7 +168,7 @@ export async function exportMealMenuPdf(year: number, month: number): Promise<Me
     return { success: false, message: 'No hay menú importado para este mes.' }
   }
 
-  const { headers, rows, monthName, employeeCount } = buildPdfMatrix(year, month)
+  const { days, monthName } = buildExportData(year, month)
   const { canceled, filePath } = await dialog.showSaveDialog({
     title: 'Exportar pedido de comidas (PDF)',
     defaultPath: `pedido-comidas-${monthName}-${year}.pdf`,
@@ -147,54 +182,79 @@ export async function exportMealMenuPdf(year: number, month: number): Promise<Me
   const pageWidth = 297
   const margin = 8
   const usableWidth = pageWidth - margin * 2
-  const dayColWidth = 16
-  const employeeColWidth = Math.max(
-    18,
-    (usableWidth - dayColWidth) / Math.max(employeeCount, 1)
-  )
-
-  const columnStyles: Record<number, { cellWidth: number; fontStyle?: 'bold'; halign?: 'left' | 'center' }> = {
-    0: { cellWidth: dayColWidth, fontStyle: 'bold', halign: 'center' }
-  }
-  for (let i = 1; i <= employeeCount; i++) {
-    columnStyles[i] = { cellWidth: employeeColWidth, halign: 'left' }
-  }
+  const nameColWidth = 28
+  const dayChunks = chunkArray(days, getMaxDaysPerPdfPage())
+  const totalSheets = dayChunks.length
 
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
-  doc.setFontSize(16)
-  doc.setFont('helvetica', 'bold')
-  doc.text(`Pedido de comidas - ${monthName} ${year}`, margin, 14)
-  doc.setFontSize(9)
-  doc.setFont('helvetica', 'normal')
-  doc.text('Organización Bodega — días en filas, empleados en columnas', margin, 20)
 
-  autoTable(doc, {
-    startY: 24,
-    head: [headers],
-    body: rows,
-    styles: {
-      fontSize: employeeCount > 10 ? 5 : 5.5,
-      cellPadding: 2,
-      overflow: 'linebreak',
-      valign: 'middle',
-      halign: 'left',
-      lineWidth: 0.1
-    },
-    headStyles: {
-      fillColor: [59, 130, 246],
-      fontSize: employeeCount > 10 ? 5 : 5.5,
-      halign: 'center',
-      valign: 'middle'
-    },
-    columnStyles,
-    margin: { left: margin, right: margin },
-    showHead: 'everyPage'
+  dayChunks.forEach((dayChunk, sheetIndex) => {
+    if (sheetIndex > 0) doc.addPage()
+
+    const { headers, rows } = buildEmployeeRowsMatrix(year, month, dayChunk)
+    const dayColWidth = Math.max(18, (usableWidth - nameColWidth) / Math.max(dayChunk.length, 1))
+    const dayRange = formatDayRangeLabel(dayChunk)
+
+    const columnStyles: Record<number, { cellWidth: number; fontStyle?: 'bold'; halign?: 'left' | 'center' }> = {
+      0: { cellWidth: nameColWidth, fontStyle: 'bold', halign: 'left' }
+    }
+    for (let i = 1; i <= dayChunk.length; i++) {
+      columnStyles[i] = { cellWidth: dayColWidth, halign: 'left' }
+    }
+
+    doc.setFontSize(16)
+    doc.setFont('helvetica', 'bold')
+    doc.text(`Pedido de comidas - ${monthName} ${year}`, margin, 14)
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'normal')
+    const sheetNote = totalSheets > 1
+      ? `Hoja ${sheetIndex + 1} de ${totalSheets} · Días: ${dayRange}`
+      : 'Empleados en filas, días en columnas'
+    doc.text(`Organización Bodega — ${sheetNote}`, margin, 20)
+
+    autoTable(doc, {
+      startY: 24,
+      head: [headers],
+      body: rows,
+      styles: {
+        fontSize: dayChunk.length > 12 ? 5 : 5.5,
+        cellPadding: 2,
+        overflow: 'linebreak',
+        valign: 'middle',
+        halign: 'left',
+        lineWidth: 0.1
+      },
+      headStyles: {
+        fillColor: [59, 130, 246],
+        fontSize: dayChunk.length > 12 ? 5 : 5.5,
+        halign: 'center',
+        valign: 'middle'
+      },
+      columnStyles,
+      margin: { left: margin, right: margin },
+      showHead: 'everyPage'
+    })
   })
+
+  const pageCount = doc.getNumberOfPages()
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i)
+    doc.setFontSize(8)
+    doc.setTextColor(150)
+    doc.text(
+      `Organización Bodega — Página ${i} de ${pageCount}`,
+      pageWidth / 2,
+      doc.internal.pageSize.getHeight() - 8,
+      { align: 'center' }
+    )
+    doc.setTextColor(0)
+  }
 
   const buffer = Buffer.from(doc.output('arraybuffer'))
   fs.writeFileSync(filePath, buffer)
 
-  return { success: true, message: `PDF guardado en ${filePath}` }
+  const sheetNote = totalSheets > 1 ? ` (${totalSheets} hojas por días)` : ''
+  return { success: true, message: `PDF guardado en ${filePath}${sheetNote}`, filePath }
 }
 
 export async function exportMealMenuExcel(year: number, month: number): Promise<MealExportResult> {
@@ -248,5 +308,5 @@ export async function exportMealMenuExcel(year: number, month: number): Promise<
   XLSX.utils.book_append_sheet(workbook, platosSheet, 'Menú del mes')
   XLSX.writeFile(workbook, filePath)
 
-  return { success: true, message: `Excel guardado en ${filePath}` }
+  return { success: true, message: `Excel guardado en ${filePath}`, filePath }
 }

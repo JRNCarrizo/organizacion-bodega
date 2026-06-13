@@ -21,10 +21,10 @@ interface Props {
   onClose: () => void
 }
 
-function formatDayTitle(day: MealDayView): string {
+function formatDayTitle(day: MealDayView) {
   const [, , d] = day.date.split('-')
   const name = day.weekday.charAt(0) + day.weekday.slice(1).toLowerCase()
-  return `${name} ${d}`
+  return { name, dayNum: d }
 }
 
 export default function MealDayPickerModal({
@@ -35,9 +35,28 @@ export default function MealDayPickerModal({
   onClose
 }: Props) {
   const modalRef = useRef<HTMLDivElement>(null)
+  const optionsContainerRef = useRef<HTMLDivElement>(null)
   const optionRefs = useRef<(HTMLButtonElement | null)[]>([])
   const focusedIndexRef = useRef(0)
   const keyboardNavRef = useRef(true)
+
+  const scrollFocusedOptionIntoView = (index: number) => {
+    const container = optionsContainerRef.current
+    const option = optionRefs.current[index]
+    if (!container || !option) return
+
+    const total = optionRefs.current.length
+    const topPadding = index === 0 ? 28 : 16
+    const bottomPadding = index === total - 1 ? 28 : 16
+    const containerRect = container.getBoundingClientRect()
+    const optionRect = option.getBoundingClientRect()
+
+    if (optionRect.bottom + bottomPadding > containerRect.bottom) {
+      container.scrollTop += optionRect.bottom + bottomPadding - containerRect.bottom
+    } else if (optionRect.top - topPadding < containerRect.top) {
+      container.scrollTop -= containerRect.top - (optionRect.top - topPadding)
+    }
+  }
 
   const groupedOptions = useMemo(() => {
     const groups = new Map<string, MealDayView['options']>()
@@ -83,8 +102,12 @@ export default function MealDayPickerModal({
 
   useEffect(() => {
     if (!keyboardNavRef.current) return
-    optionRefs.current[focusedIndex]?.scrollIntoView({ block: 'nearest', behavior: 'auto' })
+    scrollFocusedOptionIntoView(focusedIndex)
   }, [focusedIndex])
+
+  useEffect(() => {
+    requestAnimationFrame(() => scrollFocusedOptionIntoView(initialIndex))
+  }, [day.id, initialIndex])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -117,6 +140,7 @@ export default function MealDayPickerModal({
   }, [flatOptions, onSelect, onClose])
 
   let flatIndex = 0
+  const dayTitle = formatDayTitle(day)
 
   return (
     <div className="meal-modal-overlay" onClick={onClose}>
@@ -125,14 +149,17 @@ export default function MealDayPickerModal({
         className="meal-modal"
         role="dialog"
         aria-modal="true"
-        aria-label={`Elegir comida para ${formatDayTitle(day)}`}
+        aria-label={`Elegir comida para ${dayTitle.name} ${dayTitle.dayNum}`}
         tabIndex={-1}
         onClick={e => e.stopPropagation()}
       >
         <div className="meal-modal-header">
           <div>
             <span className="meal-modal-label">Elegir comida</span>
-            <h3>{formatDayTitle(day)}</h3>
+            <h3 className="meal-modal-day-title">
+              <span className="meal-modal-day-weekday">{dayTitle.name}</span>
+              <span className="meal-modal-day-num">{dayTitle.dayNum}</span>
+            </h3>
             <p>{employeeName}</p>
             <p className="meal-modal-kbd-hint">↑↓ navegar · Enter elegir · Esc cerrar</p>
           </div>
@@ -142,6 +169,7 @@ export default function MealDayPickerModal({
         </div>
 
         <div
+          ref={optionsContainerRef}
           className="meal-modal-options"
           onMouseMove={() => { keyboardNavRef.current = false }}
         >

@@ -110,6 +110,7 @@ function migrateDatabase(database: Database.Database): void {
 
   database.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('depot1_name', 'Depósito 1')").run()
   database.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('depot2_name', 'Depósito 2')").run()
+  database.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('theme', 'dark')").run()
 
   const employeeColumns = database.prepare('PRAGMA table_info(employees)').all() as Array<{ name: string }>
   const employeeColumnNames = new Set(employeeColumns.map(c => c.name))
@@ -131,6 +132,18 @@ export interface DepotSettings {
   heavyDepot: number
   depot1Name: string
   depot2Name: string
+}
+
+export type AppTheme = 'dark' | 'light'
+
+export function getTheme(): AppTheme {
+  const value = getSettingValue('theme', 'dark')
+  return value === 'light' ? 'light' : 'dark'
+}
+
+export function setTheme(theme: AppTheme): AppTheme {
+  setSettingValue('theme', theme)
+  return theme
 }
 
 function getSettingValue(key: string, defaultValue: string): string {
@@ -388,9 +401,12 @@ export function saveScheduleDay(
   const database = initDatabase()
 
   const insert = database.prepare(`
-    INSERT INTO stretch_assignments (date, employee_id, depot, balls_count)
-    VALUES (?, ?, ?, 0)
-    ON CONFLICT(date, employee_id) DO UPDATE SET depot = excluded.depot
+    INSERT INTO stretch_assignments (date, employee_id, depot, balls_count, is_replacement, original_employee_id)
+    VALUES (?, ?, ?, 0, 0, NULL)
+    ON CONFLICT(date, employee_id) DO UPDATE SET
+      depot = excluded.depot,
+      is_replacement = 0,
+      original_employee_id = NULL
   `)
 
   const transaction = database.transaction(() => {

@@ -191,11 +191,34 @@ export default function ScheduleCalendarView({
       </div>
 
       <div className="schedule-calendar-legend">
-        <span><span className="schedule-legend-dot schedule-legend-dot-heavy" /> {heavyName} (pesado)</span>
-        <span><span className="schedule-legend-dot schedule-legend-dot-light" /> {lightName} (liviano)</span>
-        <span><span className="schedule-legend-dot schedule-legend-dot-done" /> Confirmado</span>
-        <span><span className="schedule-legend-dot schedule-legend-dot-pending" /> Pendiente</span>
-        <span><span className="schedule-legend-dot schedule-legend-dot-holiday" /> Feriado</span>
+        <span className="schedule-legend-item">
+          <span className="schedule-legend-chip schedule-legend-chip-heavy" />
+          {heavyName} (pesado)
+        </span>
+        <span className="schedule-legend-item">
+          <span className="schedule-legend-chip schedule-legend-chip-light" />
+          {lightName} (liviano)
+        </span>
+        <span className="schedule-legend-item">
+          <span className="schedule-legend-stripe schedule-legend-stripe-done" />
+          Día confirmado
+        </span>
+        <span className="schedule-legend-item">
+          <span className="schedule-legend-stripe schedule-legend-stripe-partial" />
+          Parcial
+        </span>
+        <span className="schedule-legend-item">
+          <span className="schedule-legend-stripe schedule-legend-stripe-pending" />
+          Pendiente (pasado)
+        </span>
+        <span className="schedule-legend-item">
+          <span className="schedule-legend-stripe schedule-legend-stripe-holiday" />
+          Feriado
+        </span>
+        <span className="schedule-legend-item">
+          <span className="schedule-legend-ring" />
+          Hoy
+        </span>
       </div>
     </div>
   )

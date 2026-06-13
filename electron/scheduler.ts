@@ -40,7 +40,7 @@ export function getWorkingDaysInMonth(year: number, month: number, fromDate?: st
   return days
 }
 
-function getSchedulableDaysInMonth(year: number, month: number, fromDate?: string): string[] {
+export function getSchedulableDaysInMonth(year: number, month: number, fromDate?: string): string[] {
   const holidays = new Set(getStretchHolidaysForMonth(year, month))
   return getWorkingDaysInMonth(year, month, fromDate).filter(date => !holidays.has(date))
 }

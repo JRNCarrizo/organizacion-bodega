@@ -28,6 +28,7 @@ export interface ReplacementResult {
 export interface ExportPdfResult {
   success: boolean
   message: string
+  filePath?: string
 }
 
 export interface StretchScheduleDay {
@@ -95,6 +96,7 @@ export interface MealImportResult {
 export interface MealExportResult {
   success: boolean
   message: string
+  filePath?: string
 }
 
 export interface MonthlyStatsResult {

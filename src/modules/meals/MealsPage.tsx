@@ -20,10 +20,11 @@ function capitalizeMonth(date: Date): string {
   return formatted.charAt(0).toUpperCase() + formatted.slice(1)
 }
 
-function formatDayHeader(day: MealDayView): string {
+function formatDayParts(day: MealDayView) {
   const [, , d] = day.date.split('-')
   const shortDay = day.weekday.slice(0, 3).toLowerCase()
-  return `${shortDay} ${d}`
+  const fullDay = day.weekday.charAt(0) + day.weekday.slice(1).toLowerCase()
+  return { shortDay, fullDay, dayNum: d }
 }
 
 function getInitials(name: string): string {
@@ -45,6 +46,7 @@ export default function MealsPage() {
   const [pickerDay, setPickerDay] = useState<MealDayView | null>(null)
   const [importing, setImporting] = useState(false)
   const [exporting, setExporting] = useState<'pdf' | 'excel' | null>(null)
+  const [lastExportPath, setLastExportPath] = useState<string | null>(null)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [focusedDayIndex, setFocusedDayIndex] = useState(0)
@@ -75,6 +77,10 @@ export default function MealsPage() {
   }
 
   useEffect(() => { load() }, [year, month, refreshKey])
+
+  useEffect(() => {
+    setLastExportPath(null)
+  }, [year, month])
 
   const selectionMap = useMemo(() => {
     const map = new Map<string, MealSelectionView>()
@@ -128,6 +134,7 @@ export default function MealsPage() {
         : await window.api.meals.exportExcel(year, month)
       if (result.success) {
         setMessage(result.message)
+        if (result.filePath) setLastExportPath(result.filePath)
       } else if (result.message !== 'Exportación cancelada.') {
         setError(result.message)
       }
@@ -135,6 +142,17 @@ export default function MealsPage() {
       setError('Error al exportar.')
     } finally {
       setExporting(null)
+    }
+  }
+
+  const handleOpenExportFolder = async () => {
+    if (!lastExportPath) return
+    setError('')
+    try {
+      const result = await window.api.app.showItemInFolder(lastExportPath)
+      if (!result.success) setError(result.message)
+    } catch {
+      setError('No se pudo abrir la carpeta del archivo exportado.')
     }
   }
 
@@ -280,6 +298,14 @@ export default function MealsPage() {
           >
             {exporting === 'pdf' ? 'Exportando...' : 'Exportar PDF'}
           </button>
+          <button
+            className="btn btn-secondary"
+            onClick={handleOpenExportFolder}
+            disabled={!lastExportPath}
+            title={lastExportPath ? 'Abrir carpeta con el último archivo exportado' : 'Exportá primero para abrir la carpeta'}
+          >
+            Abrir carpeta
+          </button>
         </div>
       </div>
 
@@ -390,6 +416,7 @@ export default function MealsPage() {
                     {days.map((day, index) => {
                       const selection = selectionMap.get(`${selectedEmployee.id}-${day.date}`)
                       const isFocused = index === focusedDayIndex && !pickerDay
+                      const { shortDay, dayNum } = formatDayParts(day)
                       return (
                         <button
                           key={day.id}
@@ -398,13 +425,16 @@ export default function MealsPage() {
                           className={[
                             'meals-day-card',
                             'meals-day-card-clickable',
-                            selection ? 'meals-day-card-done' : '',
+                            selection ? 'meals-day-card-done' : 'meals-day-card-pending',
                             isFocused ? 'meals-day-card-focused' : ''
                           ].filter(Boolean).join(' ')}
                           onClick={() => openDayPicker(day, index)}
                         >
                           <div className="meals-day-card-header">
-                            <span className="meals-day-name">{formatDayHeader(day)}</span>
+                            <div className="meals-day-date">
+                              <span className="meals-day-weekday">{shortDay}</span>
+                              <span className="meals-day-num">{dayNum}</span>
+                            </div>
                             {selection ? (
                               <span className={`meal-cat meal-cat-${selection.category.toLowerCase()}`}>
                                 {CATEGORY_LABELS[selection.category] ?? selection.category}

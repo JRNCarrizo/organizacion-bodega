@@ -1,4 +1,5 @@
 import UpdateSection from './UpdateSection'
+import ThemeSection from './ThemeSection'
 
 export default function SettingsPage() {
   return (
@@ -9,6 +10,8 @@ export default function SettingsPage() {
       </div>
 
       <div className="settings-panel">
+        <ThemeSection />
+
         <UpdateSection />
 
         <div className="settings-section">

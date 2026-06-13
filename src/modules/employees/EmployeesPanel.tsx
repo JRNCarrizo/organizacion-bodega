@@ -212,23 +212,31 @@ export default function EmployeesPanel({ onUpdate, refreshKey }: Props) {
                       <div className="employee-modules-list">
                         <button
                           type="button"
-                          className={`employee-module-chip ${isInStretch(emp) ? 'employee-module-chip-on' : ''}`}
+                          className={`employee-module-chip ${isInStretch(emp) ? 'employee-module-chip-on' : 'employee-module-chip-off'}`}
                           onClick={() => handleToggleStretch(emp)}
                           disabled={!emp.active}
+                          aria-pressed={isInStretch(emp)}
                           title={moduleTooltip(emp, isInStretch(emp), 'Stretch')}
                         >
-                          <span className="employee-module-icon">📦</span>
-                          Stretch
+                          <span className={`employee-module-indicator ${isInStretch(emp) ? 'employee-module-indicator-on' : 'employee-module-indicator-off'}`}>
+                            {isInStretch(emp) ? '✓' : '✕'}
+                          </span>
+                          <span className="employee-module-icon">♻️</span>
+                          <span className="employee-module-name">Stretch</span>
                         </button>
                         <button
                           type="button"
-                          className={`employee-module-chip ${isInMeals(emp) ? 'employee-module-chip-on' : ''}`}
+                          className={`employee-module-chip ${isInMeals(emp) ? 'employee-module-chip-on' : 'employee-module-chip-off'}`}
                           onClick={() => handleToggleMeals(emp)}
                           disabled={!emp.active}
+                          aria-pressed={isInMeals(emp)}
                           title={moduleTooltip(emp, isInMeals(emp), 'Menú de Comidas')}
                         >
+                          <span className={`employee-module-indicator ${isInMeals(emp) ? 'employee-module-indicator-on' : 'employee-module-indicator-off'}`}>
+                            {isInMeals(emp) ? '✓' : '✕'}
+                          </span>
                           <span className="employee-module-icon">🍽️</span>
-                          Menú
+                          <span className="employee-module-name">Menú</span>
                         </button>
                       </div>
                     </div>

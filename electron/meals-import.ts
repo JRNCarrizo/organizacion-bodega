@@ -1,21 +1,15 @@
 import { dialog } from 'electron'
 import fs from 'fs'
 import path from 'path'
-import { app } from 'electron'
 import { PDFParse } from 'pdf-parse'
 import { parseCateringMenuText, inferMonthFromFilename } from './meals-parser'
 import { saveMealMenu } from './meals-database'
+import { getMealsDir } from './paths'
 
 export interface MealImportResult {
   success: boolean
   message: string
   dayCount?: number
-}
-
-function getMealsDir(): string {
-  const dir = path.join(app.getPath('userData'), 'meals')
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-  return dir
 }
 
 export async function importMealMenuPdf(

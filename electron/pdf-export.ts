@@ -66,7 +66,7 @@ function buildRows(
   })
 }
 
-export async function exportSchedulePdf(year: number, month: number): Promise<{ success: boolean; message: string }> {
+export async function exportSchedulePdf(year: number, month: number): Promise<{ success: boolean; message: string; filePath?: string }> {
   const schedule = getScheduleForMonth(year, month)
 
   if (schedule.length === 0) {
@@ -149,5 +149,5 @@ export async function exportSchedulePdf(year: number, month: number): Promise<{ 
   const buffer = Buffer.from(doc.output('arraybuffer'))
   fs.writeFileSync(filePath, buffer)
 
-  return { success: true, message: `PDF guardado en: ${filePath}` }
+  return { success: true, message: `PDF guardado en: ${filePath}`, filePath }
 }

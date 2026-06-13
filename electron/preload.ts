@@ -3,7 +3,9 @@ import type { UpdateStatusPayload } from './updater'
 
 const api = {
   app: {
-    getVersion: () => ipcRenderer.invoke('app:getVersion') as Promise<string>
+    getVersion: () => ipcRenderer.invoke('app:getVersion') as Promise<string>,
+    showItemInFolder: (filePath: string) =>
+      ipcRenderer.invoke('app:showItemInFolder', filePath) as Promise<{ success: boolean; message: string }>
   },
   updater: {
     check: () => ipcRenderer.invoke('updater:check') as Promise<{ dev?: boolean; ok?: boolean }>,
@@ -30,6 +32,9 @@ const api = {
     getDepotSettings: () => ipcRenderer.invoke('settings:getDepotSettings'),
     setDepotSettings: (settings: { heavyDepot?: number; depot1Name?: string; depot2Name?: string }) =>
       ipcRenderer.invoke('settings:setDepotSettings', settings),
+    getTheme: () => ipcRenderer.invoke('settings:getTheme') as Promise<'dark' | 'light'>,
+    setTheme: (theme: 'dark' | 'light') =>
+      ipcRenderer.invoke('settings:setTheme', theme) as Promise<'dark' | 'light'>,
     resetSchedule: () => ipcRenderer.invoke('settings:resetSchedule')
   },
   stretch: {
