@@ -126,7 +126,7 @@ ipcMain.handle('stretch:saveScheduleDay', (
   employee2Id: number,
   depot1EmployeeId: number
 ) => {
-  saveScheduleDay(date, employee1Id, employee2Id, depot1EmployeeId)
+  return saveScheduleDay(date, employee1Id, employee2Id, depot1EmployeeId)
 })
 ipcMain.handle('stretch:deleteDay', (_e, date: string) => {
   return markHolidayAndRebalance(getStretchEmployees(), date)

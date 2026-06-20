@@ -3,6 +3,8 @@ import type { Employee, MealDayView, MealMenuSummary, MealSelectionView } from '
 import { format, addMonths, subMonths } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { useAppRefresh } from '../../hooks/useAppRefresh'
+import SettingsInfoButton from '../settings/SettingsInfoButton'
+import MealDayLookupModal from './MealDayLookupModal'
 import MealDayPickerModal from './MealDayPickerModal'
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -44,6 +46,7 @@ export default function MealsPage() {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number>(0)
   const [pickerDay, setPickerDay] = useState<MealDayView | null>(null)
+  const [showDayLookup, setShowDayLookup] = useState(false)
   const [importing, setImporting] = useState(false)
   const [exporting, setExporting] = useState<'pdf' | 'excel' | null>(null)
   const [lastExportPath, setLastExportPath] = useState<string | null>(null)
@@ -104,6 +107,10 @@ export default function MealsPage() {
   const filledCount = selections.length
   const totalCells = employees.length * days.length
   const progressPct = totalCells > 0 ? Math.round((filledCount / totalCells) * 100) : 0
+  const completedEmployees = employees.filter(emp => {
+    const progress = getEmployeeProgress(emp.id)
+    return progress.total > 0 && progress.filled === progress.total
+  }).length
 
   const handleImport = async () => {
     setImporting(true)
@@ -253,57 +260,92 @@ export default function MealsPage() {
 
   return (
     <div className="meals-page">
-      <div className="page-header">
-        <h2>Menú de Comidas</h2>
-        <p>Cada empleado arma su menú del mes. Tocá un día para ver las opciones y elegir.</p>
-      </div>
+      <header className="meals-page-header">
+        <div className="meals-page-badge" aria-hidden="true">🍽️</div>
+        <div className="meals-page-copy">
+          <span className="meals-page-kicker">Catering</span>
+          <h2>Menú de Comidas</h2>
+          <p>Pedidos mensuales del equipo: importá el PDF del catering y cada empleado elige su plato por día.</p>
+        </div>
+        <SettingsInfoButton
+          title="Cómo funciona"
+          ariaLabel="Ayuda del menú de comidas"
+        >
+          <p>Importá el PDF que envía el catering para cargar las opciones del mes.</p>
+          <p>Después elegí un empleado y tocá cada día para marcar su plato.</p>
+          <p>Exportá Excel o PDF cuando el equipo termine de completar los pedidos.</p>
+          <p>Usá <strong>Consultar día</strong> para ver de un vistazo qué eligió cada uno en hoy u otro día.</p>
+        </SettingsInfoButton>
+      </header>
 
-      <div className="meals-toolbar">
-        <div className="meals-month-card">
+      <div className="schedule-toolbar meals-toolbar">
+        <div className="schedule-toolbar-month">
           <button
-            className="btn btn-secondary btn-icon"
+            type="button"
+            className="schedule-toolbar-nav-btn"
             onClick={() => setCurrentDate(subMonths(currentDate, 1))}
+            title="Mes anterior"
             aria-label="Mes anterior"
           >
-            ←
+            ‹
           </button>
-          <div className="meals-month-info">
-            <span className="meals-month-label">Mes del pedido</span>
-            <h3>{capitalizeMonth(currentDate)}</h3>
-          </div>
+          <h3>{capitalizeMonth(currentDate)}</h3>
           <button
-            className="btn btn-secondary btn-icon"
+            type="button"
+            className="schedule-toolbar-nav-btn"
             onClick={() => setCurrentDate(addMonths(currentDate, 1))}
+            title="Mes siguiente"
             aria-label="Mes siguiente"
           >
-            →
+            ›
           </button>
         </div>
 
-        <div className="meals-actions">
-          <button className="btn btn-primary" onClick={handleImport} disabled={importing}>
+        <div className="schedule-toolbar-actions">
+          <button
+            type="button"
+            className="schedule-toolbar-btn schedule-toolbar-btn-secondary"
+            onClick={() => setShowDayLookup(true)}
+            title="Ver qué comió o comerá cada empleado en un día"
+          >
+            <span className="schedule-toolbar-btn-icon" aria-hidden="true">☰</span>
+            Consultar día
+          </button>
+          <button
+            type="button"
+            className="schedule-toolbar-btn schedule-toolbar-btn-primary"
+            onClick={handleImport}
+            disabled={importing}
+          >
+            <span className="schedule-toolbar-btn-icon" aria-hidden="true">↑</span>
             {importing ? 'Importando...' : 'Importar PDF'}
           </button>
           <button
-            className="btn btn-secondary"
+            type="button"
+            className="schedule-toolbar-btn schedule-toolbar-btn-secondary"
             onClick={() => handleExport('excel')}
             disabled={!menu || exporting !== null}
           >
+            <span className="schedule-toolbar-btn-icon" aria-hidden="true">⊞</span>
             {exporting === 'excel' ? 'Exportando...' : 'Exportar Excel'}
           </button>
           <button
-            className="btn btn-secondary"
+            type="button"
+            className="schedule-toolbar-btn schedule-toolbar-btn-secondary"
             onClick={() => handleExport('pdf')}
             disabled={!menu || exporting !== null}
           >
+            <span className="schedule-toolbar-btn-icon" aria-hidden="true">↓</span>
             {exporting === 'pdf' ? 'Exportando...' : 'Exportar PDF'}
           </button>
           <button
-            className="btn btn-secondary"
+            type="button"
+            className="schedule-toolbar-btn schedule-toolbar-btn-ghost"
             onClick={handleOpenExportFolder}
             disabled={!lastExportPath}
             title={lastExportPath ? 'Abrir carpeta con el último archivo exportado' : 'Exportá primero para abrir la carpeta'}
           >
+            <span className="schedule-toolbar-btn-icon" aria-hidden="true">📁</span>
             Abrir carpeta
           </button>
         </div>
@@ -313,32 +355,61 @@ export default function MealsPage() {
       {message && <div className="alert alert-success">{message}</div>}
 
       {!menu ? (
-        <div className="meals-empty">
-          <span className="meals-empty-icon">🍽️</span>
-          <p>Sin menú cargado para {capitalizeMonth(currentDate)}</p>
-          <span>Importá el PDF que envía el catering para empezar</span>
-          <button className="btn btn-primary" onClick={handleImport} disabled={importing}>
+        <div className="meals-empty-card">
+          <div className="meals-empty-icon-wrap" aria-hidden="true">📄</div>
+          <div className="meals-empty-copy">
+            <h3>Sin menú para {capitalizeMonth(currentDate)}</h3>
+            <p>Importá el PDF del catering para cargar las opciones del mes y que el equipo pueda elegir.</p>
+          </div>
+          <button
+            type="button"
+            className="schedule-toolbar-btn schedule-toolbar-btn-primary meals-empty-btn"
+            onClick={handleImport}
+            disabled={importing}
+          >
+            <span className="schedule-toolbar-btn-icon" aria-hidden="true">↑</span>
             {importing ? 'Importando...' : 'Importar PDF del catering'}
           </button>
         </div>
       ) : (
         <>
           <div className="meals-summary">
-            <div className="meals-summary-card">
-              <span className="meals-summary-value">{menu.day_count}</span>
-              <span className="meals-summary-label">Días con menú</span>
+            <div className="meals-stat">
+              <span className="meals-stat-icon" aria-hidden="true">📅</span>
+              <div className="meals-stat-copy">
+                <span className="meals-stat-value">{menu.day_count}</span>
+                <span className="meals-stat-label">Días con menú</span>
+              </div>
             </div>
-            <div className="meals-summary-card">
-              <span className="meals-summary-value">{employees.length}</span>
-              <span className="meals-summary-label">Empleados</span>
+            <div className="meals-stat meals-stat-team">
+              <span className="meals-stat-icon" aria-hidden="true">👥</span>
+              <div className="meals-stat-copy">
+                <span className="meals-stat-value">{employees.length}</span>
+                <span className="meals-stat-label">En el pedido</span>
+              </div>
             </div>
-            <div className="meals-summary-card meals-summary-progress">
-              <span className="meals-summary-value">{progressPct}%</span>
-              <span className="meals-summary-label">Equipo completo</span>
+            <div className="meals-stat meals-stat-progress">
+              <span className="meals-stat-icon" aria-hidden="true">✓</span>
+              <div className="meals-stat-copy">
+                <span className="meals-stat-value">{completedEmployees}/{employees.length}</span>
+                <span className="meals-stat-label">Menús completos</span>
+              </div>
             </div>
-            <div className="meals-summary-card">
-              <span className="meals-summary-value meals-summary-file">{menu.source_filename ?? '—'}</span>
-              <span className="meals-summary-label">PDF importado</span>
+            <div className="meals-stat meals-stat-pct">
+              <span className="meals-stat-icon" aria-hidden="true">◔</span>
+              <div className="meals-stat-copy">
+                <span className="meals-stat-value">{progressPct}%</span>
+                <span className="meals-stat-label">Avance del equipo</span>
+              </div>
+            </div>
+            <div className="meals-stat meals-stat-file">
+              <span className="meals-stat-icon" aria-hidden="true">📎</span>
+              <div className="meals-stat-copy">
+                <span className="meals-stat-value meals-stat-filename" title={menu.source_filename ?? undefined}>
+                  {menu.source_filename ?? '—'}
+                </span>
+                <span className="meals-stat-label">PDF importado</span>
+              </div>
             </div>
           </div>
 
@@ -467,6 +538,10 @@ export default function MealsPage() {
           onSelect={optionId => handleSelection(selectedEmployee.id, pickerDay.date, optionId)}
           onClose={() => setPickerDay(null)}
         />
+      )}
+
+      {showDayLookup && (
+        <MealDayLookupModal onClose={() => setShowDayLookup(false)} />
       )}
     </div>
   )

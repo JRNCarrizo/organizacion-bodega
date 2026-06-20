@@ -80,76 +80,88 @@ export default function StatsPanel({ refreshKey }: Props) {
 
   return (
     <div className="stats-panel">
-      <div className="stats-period-toggle">
-        <button
-          className={`stats-period-btn ${isMonthView ? 'stats-period-btn-active' : ''}`}
-          onClick={() => setPeriod('month')}
-        >
-          Por mes
-        </button>
-        <button
-          className={`stats-period-btn ${!isMonthView ? 'stats-period-btn-active' : ''}`}
-          onClick={() => setPeriod('all')}
-        >
-          Total acumulado
-        </button>
-      </div>
+      <div className="stats-toolbar">
+        <div className="stats-period-toggle" role="tablist" aria-label="Período de estadísticas">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={isMonthView}
+            className={`stats-period-btn ${isMonthView ? 'stats-period-btn-active' : ''}`}
+            onClick={() => setPeriod('month')}
+          >
+            <span className="stats-period-btn-icon" aria-hidden="true">📅</span>
+            Por mes
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={!isMonthView}
+            className={`stats-period-btn ${!isMonthView ? 'stats-period-btn-active' : ''}`}
+            onClick={() => setPeriod('all')}
+          >
+            <span className="stats-period-btn-icon" aria-hidden="true">📈</span>
+            Total acumulado
+          </button>
+        </div>
 
-      {isMonthView ? (
-        <div className="stats-month-card">
-          <button
-            className="btn btn-secondary btn-icon"
-            onClick={() => setCurrentDate(subMonths(currentDate, 1))}
-            aria-label="Mes anterior"
-          >
-            ←
-          </button>
-          <div className="stats-month-info">
-            <span className="stats-month-label">Estadísticas del mes</span>
-            <h2>{capitalizeMonth(currentDate)}</h2>
+        {isMonthView ? (
+          <div className="stats-month-nav">
+            <button
+              type="button"
+              className="stats-toolbar-nav-btn"
+              onClick={() => setCurrentDate(subMonths(currentDate, 1))}
+              aria-label="Mes anterior"
+            >
+              ‹
+            </button>
+            <div className="stats-month-info">
+              <span className="stats-month-label">Estadísticas del mes</span>
+              <h2>{capitalizeMonth(currentDate)}</h2>
+            </div>
+            <button
+              type="button"
+              className="stats-toolbar-nav-btn"
+              onClick={() => setCurrentDate(addMonths(currentDate, 1))}
+              aria-label="Mes siguiente"
+            >
+              ›
+            </button>
           </div>
-          <button
-            className="btn btn-secondary btn-icon"
-            onClick={() => setCurrentDate(addMonths(currentDate, 1))}
-            aria-label="Mes siguiente"
-          >
-            →
-          </button>
-        </div>
-      ) : (
-        <div className="stats-month-card stats-month-card-all">
-          <div className="stats-month-info">
-            <span className="stats-month-label">Histórico completo</span>
-            <h2>Total acumulado</h2>
+        ) : (
+          <div className="stats-month-nav stats-month-nav-all">
+            <div className="stats-month-info">
+              <span className="stats-month-label">Histórico completo</span>
+              <h2>Total acumulado</h2>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="stats-summary">
         <div className="stats-summary-card stats-summary-balls">
-          <span className="stats-summary-icon">⚪</span>
-          <div>
+          <span className="stats-summary-icon" aria-hidden="true">⚪</span>
+          <div className="stats-summary-copy">
             <span className="stats-summary-value">{totalStretchBalls}</span>
             <span className="stats-summary-label">Unidades confirmadas</span>
           </div>
         </div>
         <div className="stats-summary-card stats-summary-primary">
-          <span className="stats-summary-icon">✓</span>
-          <div>
+          <span className="stats-summary-icon" aria-hidden="true">✓</span>
+          <div className="stats-summary-copy">
             <span className="stats-summary-value">{totalShifts}</span>
             <span className="stats-summary-label">Turnos confirmados</span>
           </div>
         </div>
-        <div className="stats-summary-card">
-          <span className="stats-summary-icon">📅</span>
-          <div>
+        <div className="stats-summary-card stats-summary-days">
+          <span className="stats-summary-icon" aria-hidden="true">📅</span>
+          <div className="stats-summary-copy">
             <span className="stats-summary-value">{uniqueDaysWorked}</span>
             <span className="stats-summary-label">Días confirmados</span>
           </div>
         </div>
         <div className="stats-summary-card stats-summary-accent">
-          <span className="stats-summary-icon">≈</span>
-          <div>
+          <span className="stats-summary-icon" aria-hidden="true">≈</span>
+          <div className="stats-summary-copy">
             <span className="stats-summary-value">{avgBallsPerEmployee}</span>
             <span className="stats-summary-label">Promedio por persona</span>
           </div>
@@ -158,14 +170,15 @@ export default function StatsPanel({ refreshKey }: Props) {
 
       {sortedStats.length === 0 ? (
         <div className="stats-empty">
-          <span className="stats-empty-icon">📊</span>
+          <span className="stats-empty-icon" aria-hidden="true">📊</span>
           <p>{isMonthView ? 'Sin datos para este mes' : 'Sin datos acumulados'}</p>
-          <span>Generá turnos y marcá los completados para ver estadísticas</span>
+          <span>Generá turnos y confirmá los completados para ver estadísticas</span>
         </div>
       ) : (
         <div className="stats-ranking-section">
           <div className="stats-ranking-header">
             <div>
+              <span className="stats-ranking-kicker">Ranking del equipo</span>
               <h3>Tabla de posiciones</h3>
               <p className="stats-ranking-subtitle">
                 Ordenada por unidades confirmadas · {isMonthView ? capitalizeMonth(currentDate) : 'Total histórico'}
@@ -175,20 +188,27 @@ export default function StatsPanel({ refreshKey }: Props) {
           </div>
 
           <div className="stats-employee-list">
-            {sortedStats.map(s => {
+            {sortedStats.map((s, index) => {
+              const rank = index + 1
               const heavyDays = getHeavyDays(s)
               const lightDays = getLightDays(s)
               const depotTotal = heavyDays + lightDays
               const heavyPct = depotTotal > 0 ? (heavyDays / depotTotal) * 100 : 50
               const hasNoData = s.stretch_balls === 0 && s.confirmed_shifts === 0
+              const topClass = !hasNoData && rank <= 3 ? `stats-employee-card-top stats-employee-card-top-${rank}` : ''
 
               return (
                 <div
                   key={s.employee_id}
-                  className={`stats-employee-card ${hasNoData ? 'stats-employee-card-empty' : ''}`}
+                  className={`stats-employee-card ${topClass} ${hasNoData ? 'stats-employee-card-empty' : ''}`}
                 >
                   <div className="stats-employee-top">
                     <div className="stats-employee-identity">
+                      {!hasNoData && (
+                        <span className={`stats-rank ${rank <= 3 ? `stats-rank-${rank}` : 'stats-rank-default'}`}>
+                          {rank}
+                        </span>
+                      )}
                       <div className="stats-employee-avatar">{getInitials(s.employee_name)}</div>
                       <div className="stats-employee-info">
                         <span className="stats-employee-name">{s.employee_name}</span>

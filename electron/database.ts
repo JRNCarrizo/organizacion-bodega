@@ -259,7 +259,14 @@ export function getEmployeeName(id: number): string {
   return row?.name ?? ''
 }
 
+function getTodayString(): string {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+}
+
 export function recordBalls(date: string, employeeId: number, depot: number, ballsCount: number): boolean {
+  if (ballsCount > 0 && date > getTodayString()) return false
+
   const database = initDatabase()
   const existing = database.prepare(`
     SELECT balls_count FROM stretch_assignments WHERE date = ? AND employee_id = ?
@@ -397,7 +404,10 @@ export function saveScheduleDay(
   employee1Id: number,
   employee2Id: number,
   depot1EmployeeId: number
-): void {
+): boolean {
+  if (hasConfirmedAssignments(date)) return false
+  if (employee1Id === employee2Id) return false
+
   const database = initDatabase()
 
   const insert = database.prepare(`
@@ -414,6 +424,7 @@ export function saveScheduleDay(
     insert.run(date, employee2Id, depot1EmployeeId === employee1Id ? 2 : 1)
   })
   transaction()
+  return true
 }
 
 export function hasConfirmedAssignments(date: string): boolean {

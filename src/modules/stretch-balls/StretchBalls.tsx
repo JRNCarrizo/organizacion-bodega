@@ -12,19 +12,48 @@ export default function StretchBalls() {
 
   return (
     <div>
-      <div className="page-header">
-        <h2>Stretch</h2>
-        <p>Asignación de turnos, rotación entre depósitos y confirmación de trabajo realizado</p>
-      </div>
+      <header className="stretch-page-header">
+        <div className="stretch-page-header-badge" aria-hidden="true">
+          S
+        </div>
+        <div className="stretch-page-header-copy">
+          <span className="stretch-page-header-kicker">Gestión de turnos</span>
+          <h2 className="stretch-page-header-title">Stretch</h2>
+          <p className="stretch-page-header-subtitle">
+            Asignación de turnos, rotación entre depósitos y confirmación de trabajo realizado
+          </p>
+        </div>
+      </header>
 
-      <div className="tabs">
-        <button className={`tab ${tab === 'schedule' ? 'active' : ''}`} onClick={() => setTab('schedule')}>
+      <div className="stretch-tabs" role="tablist" aria-label="Secciones de Stretch">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'schedule'}
+          className={`stretch-tab ${tab === 'schedule' ? 'stretch-tab-active' : ''}`}
+          onClick={() => setTab('schedule')}
+        >
+          <span className="stretch-tab-icon" aria-hidden="true">📅</span>
           Turnos del mes
         </button>
-        <button className={`tab ${tab === 'stats' ? 'active' : ''}`} onClick={() => setTab('stats')}>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'stats'}
+          className={`stretch-tab ${tab === 'stats' ? 'stretch-tab-active' : ''}`}
+          onClick={() => setTab('stats')}
+        >
+          <span className="stretch-tab-icon" aria-hidden="true">📊</span>
           Estadísticas
         </button>
-        <button className={`tab ${tab === 'settings' ? 'active' : ''}`} onClick={() => setTab('settings')}>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'settings'}
+          className={`stretch-tab ${tab === 'settings' ? 'stretch-tab-active' : ''}`}
+          onClick={() => setTab('settings')}
+        >
+          <span className="stretch-tab-icon" aria-hidden="true">⚙</span>
           Configuración
         </button>
       </div>

@@ -2,7 +2,7 @@ import { dialog } from 'electron'
 import fs from 'fs'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import * as XLSX from 'xlsx'
+import * as XLSX from 'xlsx-js-style'
 import { getMealsEmployees } from './database'
 import { getMealMenu, getMealDays, getMealSelections } from './meals-database'
 
@@ -85,6 +85,7 @@ function buildExportData(year: number, month: number) {
 
   return {
     days,
+    selections,
     employees,
     selectionMap,
     monthName: MONTH_NAMES[month - 1],
@@ -93,13 +94,70 @@ function buildExportData(year: number, month: number) {
   }
 }
 
+/** Agrupa pedidos por día y plato (descripción). */
+function countDishesByDay(
+  dayDates: string[],
+  selections: ReturnType<typeof getMealSelections>
+): Map<string, Map<string, { count: number; label: string }>> {
+  const byDay = new Map<string, Map<string, { count: number; label: string }>>()
+  for (const date of dayDates) {
+    byDay.set(date, new Map())
+  }
+
+  for (const sel of selections) {
+    const dayMap = byDay.get(sel.date)
+    if (!dayMap || !sel.description?.trim()) continue
+
+    const label = sel.description.trim().replace(/\s+/g, ' ')
+    const key = label.toLowerCase()
+    const existing = dayMap.get(key)
+    if (existing) {
+      existing.count += 1
+    } else {
+      dayMap.set(key, { count: 1, label })
+    }
+  }
+
+  return byDay
+}
+
+function formatDayDishSummary(
+  counts: Map<string, { count: number; label: string }>,
+  charsPerLine: number
+): string {
+  if (counts.size === 0) return '—'
+
+  const lines = Array.from(counts.values())
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'es'))
+    .map(({ count, label }) => {
+      const dish = label.length > charsPerLine - 3
+        ? `${label.slice(0, Math.max(4, charsPerLine - 4)).trim()}…`
+        : label
+      return `${count} ${dish}`
+    })
+
+  return lines.slice(0, 12).join('\n')
+}
+
+function buildSummaryFootRow(
+  daySubset: ReturnType<typeof getMealDays>,
+  selections: ReturnType<typeof getMealSelections>,
+  charsPerLine: number
+): string[] {
+  const countsByDay = countDishesByDay(daySubset.map(d => d.date), selections)
+  return [
+    'Totales',
+    ...daySubset.map(day => formatDayDishSummary(countsByDay.get(day.date) ?? new Map(), charsPerLine))
+  ]
+}
+
 /** Excel y PDF: empleados en filas, días en columnas. */
 function buildEmployeeRowsMatrix(
   year: number,
   month: number,
   daySubset: ReturnType<typeof getMealDays>
 ) {
-  const { employees, selectionMap } = buildExportData(year, month)
+  const { employees, selectionMap, selections } = buildExportData(year, month)
   const days = daySubset
   const charsPerLine = days.length > 12 ? 16 : days.length > 8 ? 20 : days.length > 5 ? 26 : 32
 
@@ -113,11 +171,13 @@ function buildEmployeeRowsMatrix(
     return row
   })
 
-  return { headers, rows }
+  const foot = [buildSummaryFootRow(days, selections, charsPerLine)]
+
+  return { headers, rows, foot }
 }
 
 function buildExcelMatrix(year: number, month: number) {
-  const { days, employees, selectionMap, monthName, dayCount } = buildExportData(year, month)
+  const { days, employees, selectionMap, selections, monthName, dayCount } = buildExportData(year, month)
 
   const headers = ['Empleado', ...days.map(d => formatDayLabel(d.weekday, d.date))]
   const rows = employees.map(emp => {
@@ -129,7 +189,48 @@ function buildExcelMatrix(year: number, month: number) {
     return row
   })
 
-  return { headers, rows, days, monthName, dayCount }
+  const summaryRow = buildSummaryFootRow(days, selections, 36)
+
+  return { headers, rows, summaryRow, days, monthName, dayCount }
+}
+
+function applyExcelMultilineStyles(
+  sheet: XLSX.WorkSheet,
+  rowCount: number,
+  colCount: number,
+  summaryRowIndex: number
+): number {
+  let maxSummaryLines = 1
+
+  for (let row = 1; row <= rowCount; row++) {
+    for (let col = 0; col <= colCount; col++) {
+      const addr = XLSX.utils.encode_cell({ r: row, c: col })
+      const cell = sheet[addr]
+      if (!cell || cell.v == null) continue
+
+      const text = String(cell.v)
+      const lineCount = text.split('\n').length
+      const isSummaryRow = row === summaryRowIndex
+
+      if (isSummaryRow) {
+        maxSummaryLines = Math.max(maxSummaryLines, lineCount)
+        cell.s = {
+          font: { bold: true, color: { rgb: '166534' } },
+          fill: { fgColor: { rgb: 'ECFDF5' } },
+          alignment: { wrapText: true, vertical: 'top' }
+        }
+        continue
+      }
+
+      if (lineCount > 1) {
+        cell.s = {
+          alignment: { wrapText: true, vertical: 'top' }
+        }
+      }
+    }
+  }
+
+  return maxSummaryLines
 }
 
 function chunkArray<T>(items: T[], chunkSize: number): T[][] {
@@ -191,7 +292,7 @@ export async function exportMealMenuPdf(year: number, month: number): Promise<Me
   dayChunks.forEach((dayChunk, sheetIndex) => {
     if (sheetIndex > 0) doc.addPage()
 
-    const { headers, rows } = buildEmployeeRowsMatrix(year, month, dayChunk)
+    const { headers, rows, foot } = buildEmployeeRowsMatrix(year, month, dayChunk)
     const dayColWidth = Math.max(18, (usableWidth - nameColWidth) / Math.max(dayChunk.length, 1))
     const dayRange = formatDayRangeLabel(dayChunk)
 
@@ -216,6 +317,7 @@ export async function exportMealMenuPdf(year: number, month: number): Promise<Me
       startY: 24,
       head: [headers],
       body: rows,
+      foot,
       styles: {
         fontSize: dayChunk.length > 12 ? 5 : 5.5,
         cellPadding: 2,
@@ -229,6 +331,15 @@ export async function exportMealMenuPdf(year: number, month: number): Promise<Me
         fontSize: dayChunk.length > 12 ? 5 : 5.5,
         halign: 'center',
         valign: 'middle'
+      },
+      footStyles: {
+        fillColor: [236, 253, 245],
+        textColor: [22, 101, 52],
+        fontStyle: 'bold',
+        fontSize: dayChunk.length > 12 ? 4.5 : 5,
+        halign: 'left',
+        valign: 'top',
+        cellPadding: 2.5
       },
       columnStyles,
       margin: { left: margin, right: margin },
@@ -263,7 +374,7 @@ export async function exportMealMenuExcel(year: number, month: number): Promise<
     return { success: false, message: 'No hay menú importado para este mes.' }
   }
 
-  const { headers, rows, days, monthName, dayCount } = buildExcelMatrix(year, month)
+  const { headers, rows, summaryRow, days, monthName, dayCount } = buildExcelMatrix(year, month)
   const { canceled, filePath } = await dialog.showSaveDialog({
     title: 'Exportar pedido de comidas (Excel)',
     defaultPath: `pedido-comidas-${monthName}-${year}.xlsx`,
@@ -275,7 +386,7 @@ export async function exportMealMenuExcel(year: number, month: number): Promise<
   }
 
   const flatHeaders = headers.map((h, i) => i === 0 ? h : h.replace('\n', ' '))
-  const menuSheet = [flatHeaders, ...rows]
+  const menuSheet = [flatHeaders, ...rows, summaryRow]
 
   const detailHeaders = ['Fecha', 'Día', 'Categoría', 'Plato']
   const detailRows: string[][] = []
@@ -294,6 +405,9 @@ export async function exportMealMenuExcel(year: number, month: number): Promise<
   const pedidoSheet = XLSX.utils.aoa_to_sheet(menuSheet)
   const platosSheet = XLSX.utils.aoa_to_sheet([detailHeaders, ...detailRows])
 
+  const summaryRowIndex = rows.length + 1
+  const maxSummaryLines = applyExcelMultilineStyles(pedidoSheet, summaryRowIndex, dayCount, summaryRowIndex)
+
   pedidoSheet['!cols'] = [
     { wch: 22 },
     ...Array.from({ length: dayCount }, () => ({ wch: 36 }))
@@ -301,7 +415,8 @@ export async function exportMealMenuExcel(year: number, month: number): Promise<
 
   pedidoSheet['!rows'] = [
     { hpt: 28 },
-    ...rows.map(() => ({ hpt: 54 }))
+    ...rows.map(() => ({ hpt: 54 })),
+    { hpt: Math.min(160, Math.max(48, maxSummaryLines * 15 + 10)) }
   ]
 
   XLSX.utils.book_append_sheet(workbook, pedidoSheet, 'Pedido')

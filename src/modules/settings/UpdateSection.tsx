@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import SettingsInfoButton from './SettingsInfoButton'
 
 type UpdatePhase = 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error'
 
@@ -69,57 +70,76 @@ export default function UpdateSection() {
   }
 
   return (
-    <div className="settings-section">
-      <div className="settings-section-header">
-        <span className="settings-section-icon">⬆️</span>
-        <div>
-          <h3>Actualizaciones</h3>
-          <p>Descargá e instalá la última versión desde GitHub Releases</p>
-        </div>
-      </div>
-
-      <div className="settings-info-box">
-        Versión instalada: <strong>v{version || '…'}</strong>.
-        La app busca actualizaciones al iniciar. También podés comprobar manualmente acá.
-      </div>
-
-      <div className="update-actions">
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={handleCheck}
-          disabled={busy || phase === 'downloading'}
-        >
-          {phase === 'checking' ? 'Buscando...' : 'Buscar actualizaciones'}
-        </button>
-
-        {phase === 'available' && (
-          <button type="button" className="btn btn-primary" onClick={handleDownload} disabled={busy}>
-            Descargar v{newVersion}
-          </button>
-        )}
-
-        {phase === 'downloaded' && (
-          <button type="button" className="btn btn-primary" onClick={handleInstall}>
-            Instalar v{newVersion} y reiniciar
-          </button>
-        )}
-      </div>
-
-      {phase === 'downloading' && (
-        <div className="update-progress">
-          <div className="update-progress-bar">
-            <div className="update-progress-fill" style={{ width: `${Math.round(progress)}%` }} />
+    <section className="app-settings-card">
+      <header className="app-settings-card-header">
+        <div className="app-settings-card-heading">
+          <span className="app-settings-card-icon" aria-hidden="true">⬆️</span>
+          <div>
+            <span className="app-settings-kicker">Sistema</span>
+            <h3>Actualizaciones</h3>
           </div>
-          <span className="update-progress-label">Descargando… {Math.round(progress)}%</span>
         </div>
-      )}
+        <div className="app-settings-header-actions">
+          <span className="app-settings-version-badge">v{version || '…'}</span>
+          <SettingsInfoButton title="Actualizaciones" ariaLabel="Información sobre actualizaciones">
+            <ul className="schedule-help-bubble-list">
+              <li>La app busca actualizaciones al iniciar.</li>
+              <li>También podés comprobar manualmente desde acá.</li>
+              <li>Las descargas vienen desde GitHub Releases.</li>
+              <li>En modo desarrollo (<code>npm run dev</code>) esta función no está disponible.</li>
+            </ul>
+          </SettingsInfoButton>
+        </div>
+      </header>
 
-      {phase === 'not-available' && (
-        <div className="alert alert-success">Ya tenés la última versión instalada.</div>
-      )}
+      <div className="app-settings-update-body">
+        <div className="app-settings-update-actions">
+          <button
+            type="button"
+            className="app-settings-action-btn app-settings-action-btn-secondary"
+            onClick={handleCheck}
+            disabled={busy || phase === 'downloading'}
+          >
+            {phase === 'checking' ? 'Buscando...' : 'Buscar actualizaciones'}
+          </button>
 
-      {error && <div className="alert alert-warning">{error}</div>}
-    </div>
+          {phase === 'available' && (
+            <button
+              type="button"
+              className="app-settings-action-btn app-settings-action-btn-primary"
+              onClick={handleDownload}
+              disabled={busy}
+            >
+              Descargar v{newVersion}
+            </button>
+          )}
+
+          {phase === 'downloaded' && (
+            <button
+              type="button"
+              className="app-settings-action-btn app-settings-action-btn-primary"
+              onClick={handleInstall}
+            >
+              Instalar v{newVersion} y reiniciar
+            </button>
+          )}
+        </div>
+
+        {phase === 'downloading' && (
+          <div className="update-progress">
+            <div className="update-progress-bar">
+              <div className="update-progress-fill" style={{ width: `${Math.round(progress)}%` }} />
+            </div>
+            <span className="update-progress-label">Descargando… {Math.round(progress)}%</span>
+          </div>
+        )}
+
+        {phase === 'not-available' && (
+          <div className="alert alert-success">Ya tenés la última versión instalada.</div>
+        )}
+
+        {error && <div className="alert alert-warning">{error}</div>}
+      </div>
+    </section>
   )
 }

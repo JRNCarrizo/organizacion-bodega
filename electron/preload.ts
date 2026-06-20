@@ -56,7 +56,8 @@ const api = {
       employee1Id: number,
       employee2Id: number,
       depot1EmployeeId: number
-    ) => ipcRenderer.invoke('stretch:saveScheduleDay', date, employee1Id, employee2Id, depot1EmployeeId),
+    ) =>
+      ipcRenderer.invoke('stretch:saveScheduleDay', date, employee1Id, employee2Id, depot1EmployeeId) as Promise<boolean>,
     deleteDay: (date: string) => ipcRenderer.invoke('stretch:deleteDay', date),
     markHoliday: (date: string) => ipcRenderer.invoke('stretch:markHoliday', date),
     replaceAbsent: (date: string, absentEmployeeId: number, replacementEmployeeId: number) =>

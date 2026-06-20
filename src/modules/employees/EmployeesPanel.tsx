@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Employee } from '../../types'
+import SettingsInfoButton from '../settings/SettingsInfoButton'
 
 interface Props {
   onUpdate: () => void
@@ -29,6 +30,14 @@ function moduleTooltip(emp: Employee, included: boolean, moduleName: string): st
     ? `Quitar de ${moduleName}`
     : `Incluir en ${moduleName}`
 }
+
+const SUMMARY_ITEMS = [
+  { key: 'total', label: 'Total', icon: '👥' },
+  { key: 'active', label: 'Activos', icon: '✓' },
+  { key: 'stretch', label: 'En Stretch', icon: '♻️' },
+  { key: 'meals', label: 'En Menú', icon: '🍽️' },
+  { key: 'inactive', label: 'Inactivos', icon: '○' }
+] as const
 
 export default function EmployeesPanel({ onUpdate, refreshKey }: Props) {
   const [employees, setEmployees] = useState<Employee[]>([])
@@ -97,39 +106,51 @@ export default function EmployeesPanel({ onUpdate, refreshKey }: Props) {
   const mealsCount = employees.filter(e => e.active && isInMeals(e)).length
   const inactiveCount = employees.length - activeCount
 
+  const summaryValues = {
+    total: employees.length,
+    active: activeCount,
+    stretch: stretchCount,
+    meals: mealsCount,
+    inactive: inactiveCount
+  }
+
   return (
     <div className="employees-panel">
       <div className="employees-summary">
-        <div className="employees-stat">
-          <span className="employees-stat-value">{employees.length}</span>
-          <span className="employees-stat-label">Total</span>
-        </div>
-        <div className="employees-stat employees-stat-active">
-          <span className="employees-stat-value">{activeCount}</span>
-          <span className="employees-stat-label">Activos</span>
-        </div>
-        <div className="employees-stat">
-          <span className="employees-stat-value">{stretchCount}</span>
-          <span className="employees-stat-label">En Stretch</span>
-        </div>
-        <div className="employees-stat">
-          <span className="employees-stat-value">{mealsCount}</span>
-          <span className="employees-stat-label">En Menú</span>
-        </div>
-        <div className="employees-stat">
-          <span className="employees-stat-value">{inactiveCount}</span>
-          <span className="employees-stat-label">Inactivos</span>
-        </div>
+        {SUMMARY_ITEMS.map(item => (
+          <div
+            key={item.key}
+            className={`employees-stat employees-stat-${item.key}`}
+          >
+            <span className="employees-stat-icon" aria-hidden="true">{item.icon}</span>
+            <div className="employees-stat-copy">
+              <span className="employees-stat-value">{summaryValues[item.key]}</span>
+              <span className="employees-stat-label">{item.label}</span>
+            </div>
+          </div>
+        ))}
       </div>
 
       <div className="employees-add-card">
         <div className="employees-add-header">
-          <span className="employees-add-icon">+</span>
-          <div>
-            <h3>Agregar empleado</h3>
-            <p>Nuevas personas entran activas en Stretch y Menú. Podés cambiarlo después.</p>
+          <div className="employees-add-heading">
+            <span className="employees-add-icon" aria-hidden="true">+</span>
+            <div>
+              <span className="employees-add-kicker">Nuevo miembro</span>
+              <h3>Agregar empleado</h3>
+            </div>
           </div>
+          <SettingsInfoButton title="Empleados" ariaLabel="Información sobre empleados">
+            <ul className="schedule-help-bubble-list">
+              <li>Registrá a cada persona una sola vez en el equipo.</li>
+              <li>Los nuevos ingresan <strong>activos</strong> en Stretch y Menú; podés cambiarlo después.</li>
+              <li><strong>Desactivar</strong> oculta al empleado sin borrar historial.</li>
+              <li><strong>Eliminar</strong> borra también sus registros.</li>
+              <li>Para turnos de Stretch necesitás al menos 2 empleados activos en esa sección.</li>
+            </ul>
+          </SettingsInfoButton>
         </div>
+
         <div className="employees-add-form">
           <input
             type="text"
@@ -145,26 +166,35 @@ export default function EmployeesPanel({ onUpdate, refreshKey }: Props) {
               }
             }}
           />
-          <button className="btn btn-primary" onClick={handleAdd} disabled={!newName.trim()}>
+          <button
+            type="button"
+            className="employees-add-btn"
+            onClick={handleAdd}
+            disabled={!newName.trim()}
+          >
             Agregar
           </button>
         </div>
+
         {stretchCount < 2 && (
           <div className="alert alert-warning employees-alert">
-            Para turnos de stretch necesitás al menos 2 empleados activos en esa sección.
+            Para turnos de Stretch necesitás al menos 2 empleados activos en esa sección.
           </div>
         )}
       </div>
 
       <div className="employees-list-section">
         <div className="employees-list-header">
-          <h3>Equipo</h3>
+          <div>
+            <span className="employees-list-kicker">Listado</span>
+            <h3>Equipo</h3>
+          </div>
           <span className="employees-count-badge">{activeCount} activos</span>
         </div>
 
         {employees.length === 0 ? (
           <div className="employees-empty">
-            <span className="employees-empty-icon">👥</span>
+            <span className="employees-empty-icon" aria-hidden="true">👥</span>
             <p>No hay empleados cargados</p>
             <span>Agregá personas y elegí en qué secciones participan</span>
           </div>
@@ -185,10 +215,10 @@ export default function EmployeesPanel({ onUpdate, refreshKey }: Props) {
                       onKeyDown={e => e.key === 'Enter' && handleSaveEdit(emp.id)}
                     />
                     <div className="employee-edit-actions">
-                      <button className="btn btn-primary btn-sm" onClick={() => handleSaveEdit(emp.id)}>
+                      <button type="button" className="employees-action-btn employees-action-btn-primary" onClick={() => handleSaveEdit(emp.id)}>
                         Guardar
                       </button>
-                      <button className="btn btn-secondary btn-sm" onClick={() => setEditingId(null)}>
+                      <button type="button" className="employees-action-btn employees-action-btn-secondary" onClick={() => setEditingId(null)}>
                         Cancelar
                       </button>
                     </div>
@@ -243,18 +273,24 @@ export default function EmployeesPanel({ onUpdate, refreshKey }: Props) {
 
                     <div className="employee-card-actions">
                       <button
-                        className="btn btn-secondary btn-sm"
+                        type="button"
+                        className="employees-action-btn employees-action-btn-secondary"
                         onClick={() => { setEditingId(emp.id); setEditName(emp.name) }}
                       >
                         Editar
                       </button>
                       <button
-                        className="btn btn-secondary btn-sm"
+                        type="button"
+                        className="employees-action-btn employees-action-btn-secondary"
                         onClick={() => handleToggleActive(emp)}
                       >
                         {emp.active ? 'Desactivar' : 'Activar'}
                       </button>
-                      <button className="btn btn-danger btn-sm" onClick={() => handleDelete(emp.id)}>
+                      <button
+                        type="button"
+                        className="employees-action-btn employees-action-btn-danger"
+                        onClick={() => handleDelete(emp.id)}
+                      >
                         Eliminar
                       </button>
                     </div>

@@ -1,9 +1,10 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import type { StretchScheduleDay, StretchAssignment, Employee, DepotSettings } from '../../types'
 import { getDepotName, getDepotWorkloadLabel } from '../../utils/depot'
 import { format, addMonths, subMonths } from 'date-fns'
 import { es } from 'date-fns/locale'
 import ScheduleCalendarView from './ScheduleCalendarView'
+import ScheduleEditModal from './ScheduleEditModal'
 
 type ScheduleViewMode = 'list' | 'calendar'
 
@@ -45,6 +46,9 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
   const [holidays, setHolidays] = useState<string[]>([])
   const [holidayConfirmDate, setHolidayConfirmDate] = useState<string | null>(null)
   const [markingHoliday, setMarkingHoliday] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [showHelpBubble, setShowHelpBubble] = useState(false)
+  const helpWrapRef = useRef<HTMLDivElement>(null)
 
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth() + 1
@@ -116,6 +120,27 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [holidayConfirmDate, markingHoliday])
 
+  useEffect(() => {
+    if (!showHelpBubble) return
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowHelpBubble(false)
+    }
+
+    const onPointerDown = (event: MouseEvent) => {
+      if (helpWrapRef.current && !helpWrapRef.current.contains(event.target as Node)) {
+        setShowHelpBubble(false)
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('mousedown', onPointerDown)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('mousedown', onPointerDown)
+    }
+  }, [showHelpBubble])
+
   const handleExportPdf = async () => {
     setExporting(true)
     setError('')
@@ -174,6 +199,10 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
     depot: number
   ) => {
     if (isCompleted(date, employeeId)) return
+    if (date > today) {
+      setError('Solo podés marcar turnos de hoy o días anteriores.')
+      return
+    }
 
     const ok = await window.api.stretch.recordBalls(date, employeeId, depot, 1)
     if (!ok) {
@@ -279,6 +308,7 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
   ) => {
     const assignment = getAssignment(date, employeeId)
     const completed = isCompleted(date, employeeId)
+    const isFuture = date > today
     const isReplacement = assignment?.is_replacement === 1
     const available = getAvailableReplacements(date, employeeId)
     const isReplacingThis = replacing?.date === date && replacing?.absentEmployeeId === employeeId
@@ -299,15 +329,30 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
         </div>
 
         <div className="person-card-footer">
-          <label className={`confirm-check ${completed ? 'confirm-check-locked' : ''}`}>
-            <input
-              type="checkbox"
-              checked={completed}
-              disabled={completed}
-              onChange={() => handleMarkComplete(date, employeeId, depot)}
-            />
-            <span>{completed ? '✓ Confirmado' : 'Marcar hecho'}</span>
-          </label>
+          <button
+            type="button"
+            className={`confirm-turn-btn ${
+              completed
+                ? 'confirm-turn-btn-done'
+                : isFuture
+                  ? 'confirm-turn-btn-future'
+                  : 'confirm-turn-btn-ready'
+            }`}
+            disabled={completed || isFuture}
+            onClick={() => handleMarkComplete(date, employeeId, depot)}
+          >
+            <span className="confirm-turn-btn-icon" aria-hidden="true">
+              {completed ? '✓' : isFuture ? '◷' : '!'}
+            </span>
+            <span className="confirm-turn-btn-copy">
+              <span className="confirm-turn-btn-label">
+                {completed ? 'Turno confirmado' : isFuture ? 'Día futuro' : 'Confirmar turno'}
+              </span>
+              {!completed && !isFuture && (
+                <span className="confirm-turn-btn-hint">Marcar como realizado</span>
+              )}
+            </span>
+          </button>
 
           {!completed && (
             <button
@@ -405,70 +450,136 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
 
   return (
     <div>
-      <div className="month-nav">
-        <div className="month-nav-picker">
-          <button className="btn btn-secondary btn-icon" onClick={() => setCurrentDate(subMonths(currentDate, 1))} title="Mes anterior">
-            ←
+      <div className="schedule-toolbar">
+        <div className="schedule-toolbar-month">
+          <button
+            type="button"
+            className="schedule-toolbar-nav-btn"
+            onClick={() => setCurrentDate(subMonths(currentDate, 1))}
+            title="Mes anterior"
+            aria-label="Mes anterior"
+          >
+            ‹
           </button>
           <h3>{format(currentDate, 'MMMM yyyy', { locale: es })}</h3>
-          <button className="btn btn-secondary btn-icon" onClick={() => setCurrentDate(addMonths(currentDate, 1))} title="Mes siguiente">
-            →
+          <button
+            type="button"
+            className="schedule-toolbar-nav-btn"
+            onClick={() => setCurrentDate(addMonths(currentDate, 1))}
+            title="Mes siguiente"
+            aria-label="Mes siguiente"
+          >
+            ›
           </button>
         </div>
-        <div className="month-nav-actions">
+        <div className="schedule-toolbar-actions">
           <button
-            className="btn btn-primary"
+            type="button"
+            className="schedule-toolbar-btn schedule-toolbar-btn-primary"
             onClick={handleGenerate}
             disabled={generating}
           >
+            <span className="schedule-toolbar-btn-icon" aria-hidden="true">✦</span>
             {generating ? 'Generando...' : 'Generar turnos'}
           </button>
           <button
-            className="btn btn-secondary"
+            type="button"
+            className="schedule-toolbar-btn schedule-toolbar-btn-secondary"
+            onClick={() => setShowEditModal(true)}
+            disabled={schedule.length === 0}
+          >
+            <span className="schedule-toolbar-btn-icon" aria-hidden="true">✎</span>
+            Editar turnos
+          </button>
+          <button
+            type="button"
+            className="schedule-toolbar-btn schedule-toolbar-btn-secondary"
             onClick={handleExportPdf}
             disabled={exporting || schedule.length === 0}
           >
+            <span className="schedule-toolbar-btn-icon" aria-hidden="true">↓</span>
             {exporting ? 'Exportando...' : 'Exportar PDF'}
           </button>
           <button
-            className="btn btn-secondary"
+            type="button"
+            className="schedule-toolbar-btn schedule-toolbar-btn-ghost"
             onClick={handleOpenExportFolder}
             disabled={!lastExportPath}
             title={lastExportPath ? 'Abrir carpeta con el PDF exportado' : 'Exportá primero para abrir la carpeta'}
           >
+            <span className="schedule-toolbar-btn-icon" aria-hidden="true">📁</span>
             Abrir carpeta
           </button>
         </div>
       </div>
 
-      <div className="schedule-view-toggle">
-        <button
-          type="button"
-          className={`schedule-view-btn ${viewMode === 'list' ? 'schedule-view-btn-active' : ''}`}
-          onClick={() => setViewMode('list')}
-        >
-          Detalle
-        </button>
-        <button
-          type="button"
-          className={`schedule-view-btn ${viewMode === 'calendar' ? 'schedule-view-btn-active' : ''}`}
-          onClick={() => setViewMode('calendar')}
-        >
-          Calendario
-        </button>
+      <div className="schedule-subnav">
+        <div className="schedule-view-toggle">
+          <button
+            type="button"
+            className={`schedule-view-btn ${viewMode === 'list' ? 'schedule-view-btn-active' : ''}`}
+            onClick={() => setViewMode('list')}
+          >
+            Detalle
+          </button>
+          <button
+            type="button"
+            className={`schedule-view-btn ${viewMode === 'calendar' ? 'schedule-view-btn-active' : ''}`}
+            onClick={() => setViewMode('calendar')}
+          >
+            Calendario
+          </button>
+        </div>
+
+        <div className="schedule-help-wrap" ref={helpWrapRef}>
+          <button
+            type="button"
+            className={`schedule-help-btn ${showHelpBubble ? 'schedule-help-btn-open' : ''}`}
+            onClick={() => setShowHelpBubble(open => !open)}
+            aria-expanded={showHelpBubble}
+            aria-label="Ayuda sobre turnos"
+            title="Cómo funcionan los turnos"
+          >
+            !
+          </button>
+
+          {showHelpBubble && (
+            <div className="schedule-help-bubble" role="dialog" aria-label="Ayuda sobre turnos">
+              <p className="schedule-help-bubble-title">Cómo funcionan los turnos</p>
+              <ul className="schedule-help-bubble-list">
+                <li>
+                  <strong>Generar turnos</strong> crea el calendario del mes siguiendo la rotación del mes anterior.
+                </li>
+                <li>
+                  Si alguien <strong>falta</strong>: el reemplazo cubre hoy; el ausente recupera en el próximo turno del reemplazo; los días siguientes se reacomodan solos.
+                </li>
+                <li>Los días con <strong>Hecho</strong> no se tocan.</li>
+                <li>Solo podés confirmar <strong>hoy o días anteriores</strong> (no días futuros).</li>
+                <li>
+                  Para un <strong>feriado</strong> (ej. lunes no laborable), usá <strong>Marcar feriado</strong>: ese día queda sin turno y el resto se acomoda solo.
+                </li>
+              </ul>
+            </div>
+          )}
+        </div>
       </div>
 
       {error && <div className="alert alert-warning">{error}</div>}
       {success && <div className="alert alert-success">{success}</div>}
 
-      {viewMode === 'list' && (
-        <div className="alert alert-info">
-          <strong>Generar turnos</strong> crea el calendario del mes siguiendo la rotación del mes anterior.
-          Si alguien <strong>falta</strong>: 1) el reemplazo cubre hoy, 2) el ausente recupera en el próximo turno del reemplazo,
-          3) los días siguientes se reacomodan solos. Los días con <strong>Hecho</strong> no se tocan.
-          Para un <strong>feriado</strong> (ej. lunes no laborable), usá <strong>Marcar feriado</strong>: ese día queda sin turno y el resto se acomoda solo.
-          Podés confirmar turnos de <strong>días anteriores</strong> cuando no tuviste tiempo de cargarlos.
-        </div>
+      {showEditModal && (
+        <ScheduleEditModal
+          schedule={schedule}
+          assignments={assignments}
+          employees={employees}
+          depotSettings={depotSettings}
+          onClose={() => setShowEditModal(false)}
+          onSaved={async () => {
+            setSuccess('Turnos actualizados manualmente.')
+            await load()
+            onUpdate()
+          }}
+        />
       )}
 
       {holidayConfirmDate && (

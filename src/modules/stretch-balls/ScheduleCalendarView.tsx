@@ -88,6 +88,37 @@ function getDayPeople(
   ]
 }
 
+function getStatusInfo(
+  daySchedule: StretchScheduleDay | undefined,
+  assignments: StretchAssignment[],
+  isPast: boolean,
+  isHoliday: boolean
+): { label: string; className: string } | null {
+  if (isHoliday) {
+    return { label: 'Feriado', className: 'schedule-cal-status-holiday' }
+  }
+
+  if (!daySchedule) return null
+
+  const people = getDayPeople(daySchedule, assignments)
+  const allDone = people.every(person => person.completed)
+  const someDone = people.some(person => person.completed)
+
+  if (allDone) {
+    return { label: 'Confirmado', className: 'schedule-cal-status-done' }
+  }
+
+  if (isPast) {
+    return { label: 'Pendiente', className: 'schedule-cal-status-pending' }
+  }
+
+  if (someDone) {
+    return { label: 'Parcial', className: 'schedule-cal-status-partial' }
+  }
+
+  return { label: 'Programado', className: 'schedule-cal-status-scheduled' }
+}
+
 export default function ScheduleCalendarView({
   year,
   month,
@@ -131,15 +162,17 @@ export default function ScheduleCalendarView({
             const weekend = isWeekend(cell.date)
             const isToday = cell.date === today
             const isPast = cell.date < today
+            const statusInfo = getStatusInfo(daySchedule, assignments, isPast, isHoliday)
 
             let statusClass = ''
-            if (daySchedule) {
+            if (daySchedule && !isHoliday) {
               const people = getDayPeople(daySchedule, assignments)
-              const allDone = people.every(p => p.completed)
-              const someDone = people.some(p => p.completed)
+              const allDone = people.every(person => person.completed)
+              const someDone = people.some(person => person.completed)
               if (allDone) statusClass = 'schedule-cal-cell--done'
               else if (isPast) statusClass = 'schedule-cal-cell--pending'
               else if (someDone) statusClass = 'schedule-cal-cell--partial'
+              else statusClass = 'schedule-cal-cell--scheduled'
             }
 
             const cellClasses = [
@@ -152,14 +185,28 @@ export default function ScheduleCalendarView({
             ].filter(Boolean).join(' ')
 
             const dayNum = Number(cell.date.split('-')[2])
+            const people = daySchedule ? getDayPeople(daySchedule, assignments) : []
 
             return (
-              <div key={cell.date} className={cellClasses} title={daySchedule ? cell.date : undefined}>
-                <span className="schedule-cal-day-num">{dayNum}</span>
+              <div
+                key={cell.date}
+                className={cellClasses}
+                title={daySchedule ? cell.date : undefined}
+              >
+                <div className="schedule-cal-cell-header">
+                  <span className={`schedule-cal-day-num ${isToday ? 'schedule-cal-day-num-today' : ''}`}>
+                    {dayNum}
+                  </span>
+                  {statusInfo && (
+                    <span className={`schedule-cal-status ${statusInfo.className}`}>
+                      {statusInfo.label}
+                    </span>
+                  )}
+                </div>
 
                 {daySchedule ? (
                   <div className="schedule-cal-people">
-                    {getDayPeople(daySchedule, assignments).map(person => {
+                    {people.map(person => {
                       const isHeavy = person.depot === heavyDepot
                       return (
                         <div
@@ -171,19 +218,33 @@ export default function ScheduleCalendarView({
                           ].join(' ')}
                           title={`${person.name} · ${getDepotName(person.depot, depotSettings)}${person.isReplacement ? ' (reemplazo)' : ''}`}
                         >
+                          <span className="schedule-cal-depot-tag">
+                            {isHeavy ? 'P' : 'L'}
+                          </span>
                           <span className="schedule-cal-person-name">
                             {person.isReplacement && <span className="schedule-cal-replace">↳ </span>}
                             {shortName(person.name)}
                           </span>
+                          {person.completed && (
+                            <span className="schedule-cal-person-check" aria-hidden="true">✓</span>
+                          )}
                         </div>
                       )
                     })}
                   </div>
                 ) : isHoliday ? (
-                  <span className="schedule-cal-holiday">Feriado</span>
+                  <div className="schedule-cal-empty-state">
+                    <span className="schedule-cal-holiday">Feriado</span>
+                  </div>
                 ) : weekend ? (
-                  <span className="schedule-cal-off">—</span>
-                ) : null}
+                  <div className="schedule-cal-empty-state">
+                    <span className="schedule-cal-off">Fin de semana</span>
+                  </div>
+                ) : (
+                  <div className="schedule-cal-empty-state">
+                    <span className="schedule-cal-off">Sin turno</span>
+                  </div>
+                )}
               </div>
             )
           })}
@@ -191,34 +252,57 @@ export default function ScheduleCalendarView({
       </div>
 
       <div className="schedule-calendar-legend">
-        <span className="schedule-legend-item">
-          <span className="schedule-legend-chip schedule-legend-chip-heavy" />
-          {heavyName} (pesado)
-        </span>
-        <span className="schedule-legend-item">
-          <span className="schedule-legend-chip schedule-legend-chip-light" />
-          {lightName} (liviano)
-        </span>
-        <span className="schedule-legend-item">
-          <span className="schedule-legend-stripe schedule-legend-stripe-done" />
-          Día confirmado
-        </span>
-        <span className="schedule-legend-item">
-          <span className="schedule-legend-stripe schedule-legend-stripe-partial" />
-          Parcial
-        </span>
-        <span className="schedule-legend-item">
-          <span className="schedule-legend-stripe schedule-legend-stripe-pending" />
-          Pendiente (pasado)
-        </span>
-        <span className="schedule-legend-item">
-          <span className="schedule-legend-stripe schedule-legend-stripe-holiday" />
-          Feriado
-        </span>
-        <span className="schedule-legend-item">
-          <span className="schedule-legend-ring" />
-          Hoy
-        </span>
+        <div className="schedule-legend-group">
+          <span className="schedule-legend-group-title">Depósitos</span>
+          <div className="schedule-legend-group-items">
+            <span className="schedule-legend-item">
+              <span className="schedule-legend-chip schedule-legend-chip-heavy" />
+              {heavyName} · pesado
+            </span>
+            <span className="schedule-legend-item">
+              <span className="schedule-legend-chip schedule-legend-chip-light" />
+              {lightName} · liviano
+            </span>
+            <span className="schedule-legend-item">
+              <span className="schedule-legend-tag schedule-legend-tag-heavy">P</span>
+              Pesado
+            </span>
+            <span className="schedule-legend-item">
+              <span className="schedule-legend-tag schedule-legend-tag-light">L</span>
+              Liviano
+            </span>
+          </div>
+        </div>
+
+        <div className="schedule-legend-group">
+          <span className="schedule-legend-group-title">Estados del día</span>
+          <div className="schedule-legend-group-items">
+            <span className="schedule-legend-item">
+              <span className="schedule-legend-stripe schedule-legend-stripe-done" />
+              Confirmado
+            </span>
+            <span className="schedule-legend-item">
+              <span className="schedule-legend-stripe schedule-legend-stripe-partial" />
+              Parcial
+            </span>
+            <span className="schedule-legend-item">
+              <span className="schedule-legend-stripe schedule-legend-stripe-pending" />
+              Pendiente
+            </span>
+            <span className="schedule-legend-item">
+              <span className="schedule-legend-stripe schedule-legend-stripe-scheduled" />
+              Programado
+            </span>
+            <span className="schedule-legend-item">
+              <span className="schedule-legend-stripe schedule-legend-stripe-holiday" />
+              Feriado
+            </span>
+            <span className="schedule-legend-item">
+              <span className="schedule-legend-ring" />
+              Hoy
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   )
