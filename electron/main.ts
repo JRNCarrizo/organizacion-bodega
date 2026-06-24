@@ -22,7 +22,7 @@ import {
   getScheduleForMonth,
   getStretchHolidaysForMonth
 } from './database'
-import { generateMonthlySchedule, markHolidayAndRebalance } from './scheduler'
+import { generateMonthlySchedule, markHolidayAndRebalance, unmarkHolidayAndRebalance } from './scheduler'
 import { replaceAbsentEmployee } from './replacements'
 import { exportSchedulePdf } from './pdf-export'
 import { initMealsSchema, getMealMenu, getMealDays, getMealSelections, setMealSelection } from './meals-database'
@@ -133,6 +133,9 @@ ipcMain.handle('stretch:deleteDay', (_e, date: string) => {
 })
 ipcMain.handle('stretch:markHoliday', (_e, date: string) => {
   return markHolidayAndRebalance(getStretchEmployees(), date)
+})
+ipcMain.handle('stretch:unmarkHoliday', (_e, date: string) => {
+  return unmarkHolidayAndRebalance(getStretchEmployees(), date)
 })
 ipcMain.handle('stretch:exportPdf', (_e, year: number, month: number) =>
   exportSchedulePdf(year, month)

@@ -60,6 +60,7 @@ const api = {
       ipcRenderer.invoke('stretch:saveScheduleDay', date, employee1Id, employee2Id, depot1EmployeeId) as Promise<boolean>,
     deleteDay: (date: string) => ipcRenderer.invoke('stretch:deleteDay', date),
     markHoliday: (date: string) => ipcRenderer.invoke('stretch:markHoliday', date),
+    unmarkHoliday: (date: string) => ipcRenderer.invoke('stretch:unmarkHoliday', date),
     replaceAbsent: (date: string, absentEmployeeId: number, replacementEmployeeId: number) =>
       ipcRenderer.invoke('stretch:replaceAbsent', date, absentEmployeeId, replacementEmployeeId),
     exportPdf: (year: number, month: number) =>

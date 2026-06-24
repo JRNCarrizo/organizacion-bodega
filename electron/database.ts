@@ -415,11 +415,17 @@ export function saveScheduleDay(
     VALUES (?, ?, ?, 0, 0, NULL)
     ON CONFLICT(date, employee_id) DO UPDATE SET
       depot = excluded.depot,
+      balls_count = 0,
       is_replacement = 0,
       original_employee_id = NULL
   `)
 
   const transaction = database.transaction(() => {
+    database.prepare(`
+      DELETE FROM stretch_assignments
+      WHERE date = ? AND employee_id NOT IN (?, ?)
+    `).run(date, employee1Id, employee2Id)
+
     insert.run(date, employee1Id, depot1EmployeeId === employee1Id ? 1 : 2)
     insert.run(date, employee2Id, depot1EmployeeId === employee1Id ? 2 : 1)
   })
@@ -466,6 +472,12 @@ export function markStretchHoliday(date: string): void {
   database.prepare('INSERT OR IGNORE INTO stretch_holidays (date) VALUES (?)').run(date)
 }
 
+export function unmarkStretchHoliday(date: string): boolean {
+  const database = initDatabase()
+  const result = database.prepare('DELETE FROM stretch_holidays WHERE date = ?').run(date)
+  return result.changes > 0
+}
+
 export function getScheduleForMonth(year: number, month: number): StretchScheduleDay[] {
   const database = initDatabase()
   const monthStr = String(month).padStart(2, '0')
@@ -497,21 +509,11 @@ export function getScheduleForMonth(year: number, month: number): StretchSchedul
     const day = byDate.get(a.date)!
     if (a.depot === 1) {
       day.depot1_employee_id = a.employee_id
-      if (!day.employee1_id) {
-        day.employee1_id = a.employee_id
-        day.employee1_name = a.employee_name
-      } else {
-        day.employee2_id = a.employee_id
-        day.employee2_name = a.employee_name
-      }
-    } else {
-      if (!day.employee1_id) {
-        day.employee1_id = a.employee_id
-        day.employee1_name = a.employee_name
-      } else {
-        day.employee2_id = a.employee_id
-        day.employee2_name = a.employee_name
-      }
+      day.employee1_id = a.employee_id
+      day.employee1_name = a.employee_name
+    } else if (a.depot === 2) {
+      day.employee2_id = a.employee_id
+      day.employee2_name = a.employee_name
     }
   }
 

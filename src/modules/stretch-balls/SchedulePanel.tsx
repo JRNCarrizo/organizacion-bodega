@@ -5,6 +5,8 @@ import { format, addMonths, subMonths } from 'date-fns'
 import { es } from 'date-fns/locale'
 import ScheduleCalendarView from './ScheduleCalendarView'
 import ScheduleEditModal from './ScheduleEditModal'
+import ReplacementPickerModal from './ReplacementPickerModal'
+import ScheduleRotationOverviewModal from './ScheduleRotationOverviewModal'
 
 type ScheduleViewMode = 'list' | 'calendar'
 
@@ -16,6 +18,7 @@ interface Props {
 interface ReplacingState {
   date: string
   absentEmployeeId: number
+  absentEmployeeName: string
   depot: number
 }
 
@@ -40,13 +43,16 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [replacing, setReplacing] = useState<ReplacingState | null>(null)
-  const [selectedReplacement, setSelectedReplacement] = useState<number>(0)
+  const [replacingBusy, setReplacingBusy] = useState(false)
   const [showPendingDays, setShowPendingDays] = useState(false)
   const [viewMode, setViewMode] = useState<ScheduleViewMode>('list')
   const [holidays, setHolidays] = useState<string[]>([])
   const [holidayConfirmDate, setHolidayConfirmDate] = useState<string | null>(null)
+  const [unmarkHolidayDate, setUnmarkHolidayDate] = useState<string | null>(null)
   const [markingHoliday, setMarkingHoliday] = useState(false)
+  const [showRotationOverview, setShowRotationOverview] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [showGenerateConfirm, setShowGenerateConfirm] = useState(false)
   const [showHelpBubble, setShowHelpBubble] = useState(false)
   const helpWrapRef = useRef<HTMLDivElement>(null)
 
@@ -73,6 +79,16 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
 
   const pendingPastDays = pendingPastSchedule.length
 
+  const hasConfirmedOnDay = (date: string): boolean =>
+    assignments.some(a => a.date === date && (a.balls_count ?? 0) > 0)
+
+  const regeneratePreview = useMemo(() => {
+    if (schedule.length === 0) return null
+    const kept = schedule.filter(day => hasConfirmedOnDay(day.date)).length
+    const replaced = schedule.length - kept
+    return { kept, replaced, total: schedule.length }
+  }, [schedule, assignments])
+
   const visibleSchedule = useMemo(() => {
     if (!isCurrentMonth) return schedule
     return schedule.filter(day => day.date >= today)
@@ -80,6 +96,7 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
 
   useEffect(() => {
     setShowPendingDays(false)
+    setShowGenerateConfirm(false)
   }, [year, month])
 
   const load = async () => {
@@ -119,6 +136,30 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [holidayConfirmDate, markingHoliday])
+
+  useEffect(() => {
+    if (!unmarkHolidayDate) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !markingHoliday) {
+        event.preventDefault()
+        setUnmarkHolidayDate(null)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [unmarkHolidayDate, markingHoliday])
+
+  useEffect(() => {
+    if (!showGenerateConfirm) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !generating) {
+        event.preventDefault()
+        setShowGenerateConfirm(false)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [showGenerateConfirm, generating])
 
   useEffect(() => {
     if (!showHelpBubble) return
@@ -172,7 +213,7 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
     }
   }
 
-  const handleGenerate = async () => {
+  const runGenerate = async (isRegenerate: boolean) => {
     setGenerating(true)
     setError('')
     setSuccess('')
@@ -181,7 +222,11 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
       if (!result || result.length === 0) {
         setError('No se pudieron generar turnos. Verificá que haya al menos 2 empleados activos.')
       } else {
-        setSuccess('Turnos del mes generados. La rotación continúa desde el mes anterior.')
+        setSuccess(
+          isRegenerate
+            ? 'Turnos regenerados. Los días confirmados se mantuvieron.'
+            : 'Turnos del mes generados. La rotación continúa desde el mes anterior.'
+        )
       }
       await load()
       onUpdate()
@@ -191,6 +236,21 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
     } finally {
       setGenerating(false)
     }
+  }
+
+  const requestGenerate = () => {
+    setError('')
+    setSuccess('')
+    if (schedule.length === 0) {
+      void runGenerate(false)
+      return
+    }
+    setShowGenerateConfirm(true)
+  }
+
+  const confirmGenerate = () => {
+    setShowGenerateConfirm(false)
+    void runGenerate(true)
   }
 
   const handleMarkComplete = async (
@@ -213,30 +273,41 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
     onUpdate()
   }
 
-  const handleReplace = async () => {
-    if (!replacing || !selectedReplacement) return
+  const handleReplaceConfirm = async (replacementId: number) => {
+    if (!replacing) return
+    setReplacingBusy(true)
     setError('')
     setSuccess('')
 
-    const result = await window.api.stretch.replaceAbsent(
-      replacing.date,
-      replacing.absentEmployeeId,
-      selectedReplacement
-    )
+    try {
+      const result = await window.api.stretch.replaceAbsent(
+        replacing.date,
+        replacing.absentEmployeeId,
+        replacementId
+      )
 
-    if (result.success) {
-      setSuccess(result.message)
-      setReplacing(null)
-      setSelectedReplacement(0)
-      await load()
-      onUpdate()
-    } else {
-      setError(result.message)
+      if (result.success) {
+        setSuccess(result.message)
+        setReplacing(null)
+        await load()
+        onUpdate()
+      } else {
+        setError(result.message)
+      }
+    } finally {
+      setReplacingBusy(false)
     }
   }
 
-  const hasConfirmedOnDay = (date: string): boolean => {
-    return assignments.some(a => a.date === date && a.balls_count > 0)
+  const openReplace = (
+    date: string,
+    absentEmployeeId: number,
+    absentEmployeeName: string,
+    depot: number
+  ) => {
+    setSuccess('')
+    setError('')
+    setReplacing({ date, absentEmployeeId, absentEmployeeName, depot })
   }
 
   const getAssignment = (date: string, employeeId: number): StretchAssignment | undefined => {
@@ -291,6 +362,37 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
     setHolidayConfirmDate(date)
   }
 
+  const requestUnmarkHoliday = (date: string) => {
+    setError('')
+    setSuccess('')
+    setUnmarkHolidayDate(date)
+  }
+
+  const confirmUnmarkHoliday = async (date: string) => {
+    setMarkingHoliday(true)
+    setError('')
+    setSuccess('')
+    try {
+      if (!window.api.stretch.unmarkHoliday) {
+        setError('Reiniciá la aplicación para activar quitar feriados.')
+        return
+      }
+      const ok = await window.api.stretch.unmarkHoliday(date)
+      if (!ok) {
+        setError('No se puede quitar el feriado: el día no es feriado o ya tiene confirmaciones.')
+        return
+      }
+      setSuccess('Feriado quitado. Se reasignaron los turnos desde ese día.')
+      setUnmarkHolidayDate(null)
+      await load()
+      onUpdate()
+    } catch {
+      setError('Error al quitar el feriado. Reiniciá la app e intentá de nuevo.')
+    } finally {
+      setMarkingHoliday(false)
+    }
+  }
+
   const depotLabel = (depot: number) => {
     const isHeavy = depot === depotSettings.heavyDepot
     return (
@@ -310,8 +412,6 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
     const completed = isCompleted(date, employeeId)
     const isFuture = date > today
     const isReplacement = assignment?.is_replacement === 1
-    const available = getAvailableReplacements(date, employeeId)
-    const isReplacingThis = replacing?.date === date && replacing?.absentEmployeeId === employeeId
 
     return (
       <div className={`person-card ${completed ? 'person-card-done' : ''}`}>
@@ -356,47 +456,14 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
 
           {!completed && (
             <button
+              type="button"
               className="btn btn-secondary btn-sm"
-              onClick={() => {
-                setReplacing({ date, absentEmployeeId: employeeId, depot })
-                setSelectedReplacement(0)
-                setSuccess('')
-                setError('')
-              }}
+              onClick={() => openReplace(date, employeeId, employeeName, depot)}
             >
               Reemplazar
             </button>
           )}
         </div>
-
-        {isReplacingThis && (
-          <div className="replace-panel">
-            <span className="replace-panel-label">Elegir reemplazo:</span>
-            <select
-              className="select"
-              value={selectedReplacement}
-              onChange={e => setSelectedReplacement(Number(e.target.value))}
-            >
-              <option value={0}>Seleccionar...</option>
-              {available.map(emp => (
-                <option key={emp.id} value={emp.id}>{emp.name}</option>
-              ))}
-            </select>
-            <button
-              className="btn btn-primary btn-sm"
-              disabled={!selectedReplacement}
-              onClick={handleReplace}
-            >
-              Confirmar
-            </button>
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={() => setReplacing(null)}
-            >
-              Cancelar
-            </button>
-          </div>
-        )}
       </div>
     )
   }
@@ -476,11 +543,20 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
           <button
             type="button"
             className="schedule-toolbar-btn schedule-toolbar-btn-primary"
-            onClick={handleGenerate}
+            onClick={requestGenerate}
             disabled={generating}
           >
             <span className="schedule-toolbar-btn-icon" aria-hidden="true">✦</span>
-            {generating ? 'Generando...' : 'Generar turnos'}
+            {generating ? 'Generando...' : schedule.length > 0 ? 'Regenerar turnos' : 'Generar turnos'}
+          </button>
+          <button
+            type="button"
+            className="schedule-toolbar-btn schedule-toolbar-btn-secondary"
+            onClick={() => setShowRotationOverview(true)}
+            disabled={schedule.length === 0}
+          >
+            <span className="schedule-toolbar-btn-icon" aria-hidden="true">#</span>
+            Mapa rotación
           </button>
           <button
             type="button"
@@ -548,7 +624,7 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
               <p className="schedule-help-bubble-title">Cómo funcionan los turnos</p>
               <ul className="schedule-help-bubble-list">
                 <li>
-                  <strong>Generar turnos</strong> crea el calendario del mes siguiendo la rotación del mes anterior.
+                  <strong>Generar turnos</strong> crea el calendario del mes siguiendo la rotación del mes anterior. Si ya hay turnos, <strong>Regenerar</strong> pide confirmación antes de recalcular.
                 </li>
                 <li>
                   Si alguien <strong>falta</strong>: el reemplazo cubre hoy; el ausente recupera en el próximo turno del reemplazo; los días siguientes se reacomodan solos.
@@ -567,6 +643,20 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
       {error && <div className="alert alert-warning">{error}</div>}
       {success && <div className="alert alert-success">{success}</div>}
 
+      {showRotationOverview && (
+        <ScheduleRotationOverviewModal
+          year={year}
+          month={month}
+          schedule={schedule}
+          assignments={assignments}
+          employees={employees}
+          depotSettings={depotSettings}
+          holidays={holidays}
+          today={today}
+          onClose={() => setShowRotationOverview(false)}
+        />
+      )}
+
       {showEditModal && (
         <ScheduleEditModal
           schedule={schedule}
@@ -580,6 +670,136 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
             onUpdate()
           }}
         />
+      )}
+
+      {replacing && (
+        <ReplacementPickerModal
+          dateLabel={formatDateParts(replacing.date).full}
+          absentEmployeeName={replacing.absentEmployeeName}
+          depot={replacing.depot}
+          depotSettings={depotSettings}
+          candidates={getAvailableReplacements(replacing.date, replacing.absentEmployeeId)}
+          busy={replacingBusy}
+          onSelect={handleReplaceConfirm}
+          onClose={() => !replacingBusy && setReplacing(null)}
+        />
+      )}
+
+      {showGenerateConfirm && regeneratePreview && (
+        <div
+          className="meal-modal-overlay"
+          onClick={() => !generating && setShowGenerateConfirm(false)}
+        >
+          <div
+            className="meal-modal schedule-holiday-modal schedule-generate-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="generate-modal-title"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="meal-modal-header">
+              <div>
+                <span className="meal-modal-label">Regenerar calendario</span>
+                <h3 id="generate-modal-title">¿Volver a generar turnos?</h3>
+                <p>Este mes ya tiene turnos cargados. Si continuás, el sistema los recalculará automáticamente.</p>
+              </div>
+              <button
+                type="button"
+                className="meal-modal-close"
+                onClick={() => !generating && setShowGenerateConfirm(false)}
+                aria-label="Cerrar"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="schedule-generate-confirm-body">
+              <ul className="schedule-generate-confirm-list">
+                <li>
+                  <strong>{regeneratePreview.replaced}</strong> día{regeneratePreview.replaced === 1 ? '' : 's'} sin confirmar
+                  {regeneratePreview.replaced === 1 ? ' se recalculará' : ' se recalcularán'} (incluye cambios manuales en esos días).
+                </li>
+                {regeneratePreview.kept > 0 && (
+                  <li>
+                    <strong>{regeneratePreview.kept}</strong> día{regeneratePreview.kept === 1 ? '' : 's'} con confirmaciones
+                    {regeneratePreview.kept === 1 ? ' se mantiene' : ' se mantienen'} sin cambios.
+                  </li>
+                )}
+                <li>La rotación sigue el historial guardado, incluido el mes anterior.</li>
+              </ul>
+            </div>
+
+            <div className="schedule-holiday-modal-actions">
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={confirmGenerate}
+                disabled={generating}
+              >
+                {generating ? 'Generando...' : 'Sí, regenerar turnos'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setShowGenerateConfirm(false)}
+                disabled={generating}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {unmarkHolidayDate && (
+        <div
+          className="meal-modal-overlay"
+          onClick={() => !markingHoliday && setUnmarkHolidayDate(null)}
+        >
+          <div
+            className="meal-modal schedule-holiday-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="unmark-holiday-modal-title"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="meal-modal-header">
+              <div>
+                <span className="meal-modal-label">Quitar feriado</span>
+                <h3 id="unmark-holiday-modal-title">{formatDateParts(unmarkHolidayDate).full}</h3>
+                <p>
+                  Ese día volverá a tener turno de Stretch. Los días siguientes se reacomodan solos.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="meal-modal-close"
+                onClick={() => !markingHoliday && setUnmarkHolidayDate(null)}
+                aria-label="Cerrar"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="schedule-holiday-modal-actions">
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => confirmUnmarkHoliday(unmarkHolidayDate)}
+                disabled={markingHoliday}
+              >
+                {markingHoliday ? 'Guardando...' : 'Sí, quitar feriado'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setUnmarkHolidayDate(null)}
+                disabled={markingHoliday}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {holidayConfirmDate && (
@@ -670,6 +890,7 @@ export default function SchedulePanel({ refreshKey, onUpdate }: Props) {
           depotSettings={depotSettings}
           holidays={holidays}
           today={today}
+          onUnmarkHoliday={requestUnmarkHoliday}
         />
       ) : (
         <div className="schedule-list">

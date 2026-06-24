@@ -10,6 +10,7 @@ interface Props {
   depotSettings: DepotSettings
   holidays: string[]
   today: string
+  onUnmarkHoliday?: (date: string) => void
 }
 
 const WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
@@ -126,7 +127,8 @@ export default function ScheduleCalendarView({
   assignments,
   depotSettings,
   holidays,
-  today
+  today,
+  onUnmarkHoliday
 }: Props) {
   const scheduleByDate = useMemo(() => {
     const map = new Map<string, StretchScheduleDay>()
@@ -157,11 +159,12 @@ export default function ScheduleCalendarView({
               return <div key={`pad-${index}`} className="schedule-cal-cell schedule-cal-cell--padding" />
             }
 
-            const daySchedule = scheduleByDate.get(cell.date)
-            const isHoliday = holidaysSet.has(cell.date)
-            const weekend = isWeekend(cell.date)
-            const isToday = cell.date === today
-            const isPast = cell.date < today
+            const date = cell.date
+            const daySchedule = scheduleByDate.get(date)
+            const isHoliday = holidaysSet.has(date)
+            const weekend = isWeekend(date)
+            const isToday = date === today
+            const isPast = date < today
             const statusInfo = getStatusInfo(daySchedule, assignments, isPast, isHoliday)
 
             let statusClass = ''
@@ -178,20 +181,38 @@ export default function ScheduleCalendarView({
             const cellClasses = [
               'schedule-cal-cell',
               weekend && !daySchedule && !isHoliday ? 'schedule-cal-cell--weekend' : '',
-              isHoliday ? 'schedule-cal-cell--holiday' : '',
+              isHoliday ? 'schedule-cal-cell--holiday schedule-cal-cell--clickable' : '',
               isToday ? 'schedule-cal-cell--today' : '',
               daySchedule ? 'schedule-cal-cell--scheduled' : '',
               statusClass
             ].filter(Boolean).join(' ')
 
-            const dayNum = Number(cell.date.split('-')[2])
+            const dayNum = Number(date.split('-')[2])
             const people = daySchedule ? getDayPeople(daySchedule, assignments) : []
+            const holidayTitle = isHoliday
+              ? `${date} · Feriado. Clic para quitar feriado y reasignar turno.`
+              : daySchedule
+                ? date
+                : undefined
 
             return (
               <div
-                key={cell.date}
+                key={date}
                 className={cellClasses}
-                title={daySchedule ? cell.date : undefined}
+                title={holidayTitle}
+                role={isHoliday && onUnmarkHoliday ? 'button' : undefined}
+                tabIndex={isHoliday && onUnmarkHoliday ? 0 : undefined}
+                onClick={isHoliday && onUnmarkHoliday ? () => onUnmarkHoliday(date) : undefined}
+                onKeyDown={
+                  isHoliday && onUnmarkHoliday
+                    ? event => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          onUnmarkHoliday(date)
+                        }
+                      }
+                    : undefined
+                }
               >
                 <div className="schedule-cal-cell-header">
                   <span className={`schedule-cal-day-num ${isToday ? 'schedule-cal-day-num-today' : ''}`}>
@@ -235,6 +256,9 @@ export default function ScheduleCalendarView({
                 ) : isHoliday ? (
                   <div className="schedule-cal-empty-state">
                     <span className="schedule-cal-holiday">Feriado</span>
+                    {onUnmarkHoliday && (
+                      <span className="schedule-cal-holiday-action">Quitar feriado</span>
+                    )}
                   </div>
                 ) : weekend ? (
                   <div className="schedule-cal-empty-state">
@@ -295,7 +319,7 @@ export default function ScheduleCalendarView({
             </span>
             <span className="schedule-legend-item">
               <span className="schedule-legend-stripe schedule-legend-stripe-holiday" />
-              Feriado
+              Feriado · clic para quitar
             </span>
             <span className="schedule-legend-item">
               <span className="schedule-legend-ring" />

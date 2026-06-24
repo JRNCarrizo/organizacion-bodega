@@ -1,6 +1,6 @@
 {
   "name": "organizacion-bodega",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Plataforma de organización de empleados - Bodega",
   "main": "dist-electron/main.js",
   "author": "JRNCarrizo",
@@ -61,7 +61,8 @@
             "x64"
           ]
         }
-      ]
+      ],
+      "signAndEditExecutable": false
     },
     "nsis": {
       "oneClick": false,

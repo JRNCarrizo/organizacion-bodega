@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import type { StretchScheduleDay, StretchAssignment, Employee, DepotSettings } from '../../types'
@@ -17,13 +17,14 @@ interface Props {
   employees: Employee[]
   depotSettings: DepotSettings
   onClose: () => void
-  onSaved: () => void
+  onSaved: () => void | Promise<void>
 }
 
-function getDepotPersonIds(day: StretchScheduleDay): { depot1Id: number; depot2Id: number } {
-  const depot1Id = day.depot1_employee_id
-  const depot2Id = day.depot1_employee_id === day.employee1_id ? day.employee2_id : day.employee1_id
-  return { depot1Id, depot2Id }
+type ActiveField = 'nav' | 'depot1' | 'depot2'
+type OpenPicker = 1 | 2 | null
+
+function todayIso(): string {
+  return format(new Date(), 'yyyy-MM-dd')
 }
 
 function buildRows(schedule: StretchScheduleDay[], assignments: StretchAssignment[]): EditRow[] {
@@ -32,20 +33,141 @@ function buildRows(schedule: StretchScheduleDay[], assignments: StretchAssignmen
   )
 
   return schedule.map(day => {
-    const { depot1Id, depot2Id } = getDepotPersonIds(day)
+    const dayAssignments = assignments.filter(a => a.date === day.date)
+    const depot1Assignment = dayAssignments.find(a => a.depot === 1)
+    const depot2Assignment = dayAssignments.find(a => a.depot === 2)
+
+    const depot1EmployeeId = depot1Assignment?.employee_id ?? day.depot1_employee_id
+    let depot2EmployeeId = depot2Assignment?.employee_id ?? 0
+
+    if (!depot2EmployeeId) {
+      depot2EmployeeId = day.employee2_id || day.employee1_id
+    }
+
     return {
       date: day.date,
-      depot1EmployeeId: depot1Id,
-      depot2EmployeeId: depot2Id,
+      depot1EmployeeId,
+      depot2EmployeeId,
       locked: confirmedDates.has(day.date)
     }
   })
 }
 
+function getInitialDayIndex(rows: EditRow[]): number {
+  if (rows.length === 0) return 0
+
+  const today = todayIso()
+  const todayIdx = rows.findIndex(row => row.date === today)
+  if (todayIdx >= 0) return todayIdx
+
+  const nextIdx = rows.findIndex(row => row.date > today)
+  if (nextIdx >= 0) return nextIdx
+
+  return rows.length - 1
+}
+
 function formatDateLabel(dateStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number)
   const date = new Date(y, m - 1, d)
-  return format(date, "EEE d MMM", { locale: es })
+  return format(date, "EEEE d 'de' MMMM", { locale: es })
+}
+
+function formatDateShort(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const date = new Date(y, m - 1, d)
+  const formatted = format(date, "EEE d MMM", { locale: es })
+  return formatted.charAt(0).toUpperCase() + formatted.slice(1)
+}
+
+function getPickerOptions(
+  employees: Employee[],
+  depot: 1 | 2,
+  row: EditRow
+): Employee[] {
+  const excludeId = depot === 1 ? row.depot2EmployeeId : row.depot1EmployeeId
+  return employees.filter(emp => emp.id !== excludeId)
+}
+
+interface EmployeePickerFieldProps {
+  label: string
+  value: number
+  employees: Employee[]
+  options: Employee[]
+  disabled: boolean
+  isFocused: boolean
+  isOpen: boolean
+  focusedOptionIndex: number
+  optionRefs: MutableRefObject<(HTMLButtonElement | null)[]>
+  onOpen: () => void
+  onSelect: (employeeId: number) => void
+}
+
+function EmployeePickerField({
+  label,
+  value,
+  employees,
+  options,
+  disabled,
+  isFocused,
+  isOpen,
+  focusedOptionIndex,
+  optionRefs,
+  onOpen,
+  onSelect
+}: EmployeePickerFieldProps) {
+  const selectedName = employees.find(e => e.id === value)?.name ?? '—'
+
+  return (
+    <div
+      className={[
+        'schedule-edit-depot-field',
+        isFocused ? 'schedule-edit-depot-field--focused' : ''
+      ].filter(Boolean).join(' ')}
+    >
+      <span className="schedule-edit-depot-label">{label}</span>
+      {disabled ? (
+        <span className="schedule-edit-name">{selectedName}</span>
+      ) : (
+        <div className="schedule-edit-picker">
+          <button
+            type="button"
+            className={[
+              'schedule-edit-picker-trigger',
+              isOpen ? 'schedule-edit-picker-trigger--open' : '',
+              isFocused ? 'schedule-edit-picker-trigger--focused' : ''
+            ].filter(Boolean).join(' ')}
+            onClick={onOpen}
+            aria-haspopup="listbox"
+            aria-expanded={isOpen}
+          >
+            <span className="schedule-edit-picker-value">{selectedName}</span>
+            <span className="schedule-edit-picker-chevron" aria-hidden="true">▾</span>
+          </button>
+          {isOpen && (
+            <div className="schedule-edit-picker-list" role="listbox" aria-label={label}>
+              {options.map((emp, index) => (
+                <button
+                  key={emp.id}
+                  ref={el => { optionRefs.current[index] = el }}
+                  type="button"
+                  role="option"
+                  aria-selected={emp.id === value}
+                  className={[
+                    'schedule-edit-picker-option',
+                    index === focusedOptionIndex ? 'schedule-edit-picker-option--focused' : '',
+                    emp.id === value ? 'schedule-edit-picker-option--selected' : ''
+                  ].filter(Boolean).join(' ')}
+                  onClick={() => onSelect(emp.id)}
+                >
+                  {emp.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function ScheduleEditModal({
@@ -56,56 +178,206 @@ export default function ScheduleEditModal({
   onClose,
   onSaved
 }: Props) {
+  const modalRef = useRef<HTMLDivElement>(null)
+  const optionRefs = useRef<(HTMLButtonElement | null)[]>([])
+
   const initialRows = useMemo(() => buildRows(schedule, assignments), [schedule, assignments])
   const [rows, setRows] = useState<EditRow[]>(initialRows)
+  const [dayIndex, setDayIndex] = useState(() => getInitialDayIndex(initialRows))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [activeField, setActiveField] = useState<ActiveField>('nav')
+  const [openPicker, setOpenPicker] = useState<OpenPicker>(null)
+  const [pickerIndex, setPickerIndex] = useState(0)
 
   useEffect(() => {
     setRows(initialRows)
   }, [initialRows])
 
   useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !saving) {
-        event.preventDefault()
-        onClose()
+    modalRef.current?.focus()
+  }, [])
+
+  const row = rows[dayIndex]
+
+  const closePicker = useCallback(() => {
+    setOpenPicker(null)
+  }, [])
+
+  const openPickerFor = useCallback((depot: 1 | 2, currentRow: EditRow) => {
+    const options = getPickerOptions(employees, depot, currentRow)
+    const currentId = depot === 1 ? currentRow.depot1EmployeeId : currentRow.depot2EmployeeId
+    const idx = Math.max(0, options.findIndex(emp => emp.id === currentId))
+    optionRefs.current = []
+    setPickerIndex(idx)
+    setOpenPicker(depot)
+    setActiveField(depot === 1 ? 'depot1' : 'depot2')
+  }, [employees])
+
+  useEffect(() => {
+    closePicker()
+  }, [dayIndex, closePicker])
+
+  useEffect(() => {
+    if (openPicker === null) return
+    optionRefs.current[pickerIndex]?.scrollIntoView({ block: 'nearest', behavior: 'auto' })
+  }, [openPicker, pickerIndex])
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (saving || !row) return
+
+      if (openPicker !== null) {
+        const options = getPickerOptions(employees, openPicker, row)
+
+        switch (event.key) {
+          case 'Escape':
+            event.preventDefault()
+            closePicker()
+            return
+          case 'ArrowDown':
+            event.preventDefault()
+            setPickerIndex(i => (i < options.length - 1 ? i + 1 : i))
+            return
+          case 'ArrowUp':
+            event.preventDefault()
+            setPickerIndex(i => (i > 0 ? i - 1 : i))
+            return
+          case 'Enter':
+            event.preventDefault()
+            if (options[pickerIndex]) {
+              updateDepotRef.current(row.date, openPicker, options[pickerIndex].id)
+              closePicker()
+            }
+            return
+        }
+        return
+      }
+
+      switch (event.key) {
+        case 'Escape':
+          event.preventDefault()
+          onClose()
+          return
+        case 'ArrowLeft':
+          event.preventDefault()
+          goToDayRef.current(-1)
+          setActiveField('nav')
+          return
+        case 'ArrowRight':
+          event.preventDefault()
+          goToDayRef.current(1)
+          setActiveField('nav')
+          return
+        case 'ArrowDown':
+          event.preventDefault()
+          if (row.locked) return
+          if (activeField === 'nav') setActiveField('depot1')
+          else if (activeField === 'depot1') setActiveField('depot2')
+          return
+        case 'ArrowUp':
+          event.preventDefault()
+          if (activeField === 'depot2') setActiveField('depot1')
+          else if (activeField === 'depot1') setActiveField('nav')
+          return
+        case 'Enter':
+          if (row.locked) return
+          if (activeField === 'depot1') {
+            event.preventDefault()
+            openPickerFor(1, row)
+          } else if (activeField === 'depot2') {
+            event.preventDefault()
+            openPickerFor(2, row)
+          }
+          return
       }
     }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [onClose, saving])
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [
+    saving,
+    row,
+    openPicker,
+    pickerIndex,
+    activeField,
+    employees,
+    closePicker,
+    onClose,
+    openPickerFor
+  ])
 
   const depot1Label = getDepotName(1, depotSettings)
   const depot2Label = getDepotName(2, depotSettings)
+  const isToday = row?.date === todayIso()
+  const initialRow = initialRows[dayIndex]
+  const currentDayDirty = row && initialRow && !row.locked && (
+    row.depot1EmployeeId !== initialRow.depot1EmployeeId ||
+    row.depot2EmployeeId !== initialRow.depot2EmployeeId
+  )
 
-  const hasChanges = rows.some((row, index) => {
+  const hasChanges = rows.some((currentRow, index) => {
     const initial = initialRows[index]
-    if (!initial || row.locked) return false
+    if (!initial || currentRow.locked) return false
     return (
-      row.depot1EmployeeId !== initial.depot1EmployeeId ||
-      row.depot2EmployeeId !== initial.depot2EmployeeId
+      currentRow.depot1EmployeeId !== initial.depot1EmployeeId ||
+      currentRow.depot2EmployeeId !== initial.depot2EmployeeId
     )
   })
 
-  const updateRow = (date: string, patch: Partial<Pick<EditRow, 'depot1EmployeeId' | 'depot2EmployeeId'>>) => {
+  const updateDepot = (
+    date: string,
+    depot: 1 | 2,
+    newEmployeeId: number
+  ) => {
     setRows(current =>
-      current.map(row => (row.date === date ? { ...row, ...patch } : row))
+      current.map(currentRow => {
+        if (currentRow.date !== date || currentRow.locked) return currentRow
+
+        if (depot === 1) {
+          if (newEmployeeId === currentRow.depot1EmployeeId) return currentRow
+          return { ...currentRow, depot1EmployeeId: newEmployeeId }
+        }
+
+        if (newEmployeeId === currentRow.depot2EmployeeId) return currentRow
+        return { ...currentRow, depot2EmployeeId: newEmployeeId }
+      })
     )
     setError('')
   }
 
+  const updateDepotRef = useRef(updateDepot)
+  updateDepotRef.current = updateDepot
+
   const swapDepots = (date: string) => {
     setRows(current =>
-      current.map(row => {
-        if (row.date !== date || row.locked) return row
+      current.map(currentRow => {
+        if (currentRow.date !== date || currentRow.locked) return currentRow
         return {
-          ...row,
-          depot1EmployeeId: row.depot2EmployeeId,
-          depot2EmployeeId: row.depot1EmployeeId
+          ...currentRow,
+          depot1EmployeeId: currentRow.depot2EmployeeId,
+          depot2EmployeeId: currentRow.depot1EmployeeId
         }
       })
     )
+    setError('')
+  }
+
+  const goToDay = (offset: number) => {
+    setDayIndex(current => {
+      const next = current + offset
+      if (next < 0 || next >= rows.length) return current
+      return next
+    })
+    setError('')
+  }
+
+  const goToDayRef = useRef(goToDay)
+  goToDayRef.current = goToDay
+
+  const goToToday = () => {
+    setDayIndex(getInitialDayIndex(rows))
+    setActiveField('nav')
     setError('')
   }
 
@@ -118,27 +390,29 @@ export default function ScheduleEditModal({
       let failedCount = 0
 
       for (let i = 0; i < rows.length; i++) {
-        const row = rows[i]
+        const currentRow = rows[i]
         const initial = initialRows[i]
-        if (!initial || row.locked) continue
+        if (!initial || currentRow.locked) continue
 
         const changed =
-          row.depot1EmployeeId !== initial.depot1EmployeeId ||
-          row.depot2EmployeeId !== initial.depot2EmployeeId
+          currentRow.depot1EmployeeId !== initial.depot1EmployeeId ||
+          currentRow.depot2EmployeeId !== initial.depot2EmployeeId
 
         if (!changed) continue
 
-        if (row.depot1EmployeeId === row.depot2EmployeeId) {
-          setError(`El ${formatDateLabel(row.date)} tiene la misma persona en ambos depósitos.`)
+        if (currentRow.depot1EmployeeId === currentRow.depot2EmployeeId) {
+          setError(`El ${formatDateShort(currentRow.date)} tiene la misma persona en ambos depósitos.`)
+          setDayIndex(i)
+          setActiveField('nav')
           setSaving(false)
           return
         }
 
         const ok = await window.api.stretch.saveScheduleDay(
-          row.date,
-          row.depot1EmployeeId,
-          row.depot2EmployeeId,
-          row.depot1EmployeeId
+          currentRow.date,
+          currentRow.depot1EmployeeId,
+          currentRow.depot2EmployeeId,
+          currentRow.depot1EmployeeId
         )
 
         if (ok) savedCount++
@@ -149,9 +423,9 @@ export default function ScheduleEditModal({
         setError('No se pudieron guardar los cambios. Los días con confirmaciones no se pueden editar.')
       } else if (failedCount > 0) {
         setError(`Se guardaron ${savedCount} turnos. ${failedCount} no se pudieron editar (confirmados).`)
-        onSaved()
+        await onSaved()
       } else if (savedCount > 0) {
-        onSaved()
+        await onSaved()
         onClose()
       } else {
         onClose()
@@ -164,13 +438,18 @@ export default function ScheduleEditModal({
     }
   }
 
+  const depot1Options = row ? getPickerOptions(employees, 1, row) : employees
+  const depot2Options = row ? getPickerOptions(employees, 2, row) : employees
+
   return (
     <div className="meal-modal-overlay" onClick={() => !saving && onClose()}>
       <div
+        ref={modalRef}
         className="meal-modal schedule-edit-modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby="schedule-edit-title"
+        tabIndex={-1}
         onClick={e => e.stopPropagation()}
       >
         <div className="meal-modal-header">
@@ -178,7 +457,10 @@ export default function ScheduleEditModal({
             <span className="meal-modal-label">Edición manual</span>
             <h3 id="schedule-edit-title">Turnos por depósito</h3>
             <p>
-              Cambiá quién va a cada depósito. Los días con confirmaciones están bloqueados.
+              Elegí quién va a cada depósito y apretá <strong>Guardar cambios</strong> para aplicarlo en el calendario.
+            </p>
+            <p className="meal-modal-kbd-hint">
+              ← → día · ↓ campos · Enter abrir lista · ↑↓ elegir · Esc cierra lista o modal
             </p>
           </div>
           <button
@@ -197,96 +479,127 @@ export default function ScheduleEditModal({
           <div className="schedule-edit-empty">
             <p>No hay turnos para editar en este mes.</p>
           </div>
-        ) : (
-          <div className="schedule-edit-table-wrap">
-            <table className="schedule-edit-table">
-              <thead>
-                <tr>
-                  <th>Fecha</th>
-                  <th>{depot1Label}</th>
-                  <th aria-label="Intercambiar" />
-                  <th>{depot2Label}</th>
-                  <th>Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map(row => (
-                  <tr key={row.date} className={row.locked ? 'schedule-edit-row-locked' : ''}>
-                    <td className="schedule-edit-date">{formatDateLabel(row.date)}</td>
-                    <td>
-                      {row.locked ? (
-                        <span className="schedule-edit-name">
-                          {employees.find(e => e.id === row.depot1EmployeeId)?.name ?? '—'}
-                        </span>
-                      ) : (
-                        <select
-                          className="select schedule-edit-select"
-                          value={row.depot1EmployeeId}
-                          onChange={e =>
-                            updateRow(row.date, { depot1EmployeeId: Number(e.target.value) })
-                          }
-                        >
-                          {employees.map(emp => (
-                            <option
-                              key={emp.id}
-                              value={emp.id}
-                              disabled={emp.id === row.depot2EmployeeId}
-                            >
-                              {emp.name}
-                            </option>
-                          ))}
-                        </select>
-                      )}
-                    </td>
-                    <td className="schedule-edit-swap-cell">
-                      {!row.locked && (
-                        <button
-                          type="button"
-                          className="btn btn-secondary btn-sm schedule-edit-swap-btn"
-                          onClick={() => swapDepots(row.date)}
-                          title="Intercambiar depósitos"
-                        >
-                          ⇄
-                        </button>
-                      )}
-                    </td>
-                    <td>
-                      {row.locked ? (
-                        <span className="schedule-edit-name">
-                          {employees.find(e => e.id === row.depot2EmployeeId)?.name ?? '—'}
-                        </span>
-                      ) : (
-                        <select
-                          className="select schedule-edit-select"
-                          value={row.depot2EmployeeId}
-                          onChange={e =>
-                            updateRow(row.date, { depot2EmployeeId: Number(e.target.value) })
-                          }
-                        >
-                          {employees.map(emp => (
-                            <option
-                              key={emp.id}
-                              value={emp.id}
-                              disabled={emp.id === row.depot1EmployeeId}
-                            >
-                              {emp.name}
-                            </option>
-                          ))}
-                        </select>
-                      )}
-                    </td>
-                    <td>
-                      {row.locked ? (
-                        <span className="schedule-edit-locked" title="Día confirmado">🔒</span>
-                      ) : (
-                        <span className="schedule-edit-editable">Editable</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        ) : row && (
+          <>
+            <div
+              className={[
+                'schedule-edit-day-nav',
+                activeField === 'nav' && openPicker === null ? 'schedule-edit-day-nav--focused' : ''
+              ].filter(Boolean).join(' ')}
+            >
+              <button
+                type="button"
+                className="meal-lookup-nav-btn"
+                onClick={() => {
+                  goToDay(-1)
+                  setActiveField('nav')
+                }}
+                disabled={saving || dayIndex <= 0}
+                aria-label="Día anterior"
+              >
+                ‹
+              </button>
+
+              <div className="schedule-edit-day-info">
+                <div className="schedule-edit-day-title-row">
+                  <span className="schedule-edit-day-title">{formatDateLabel(row.date)}</span>
+                  {isToday && <span className="meal-lookup-today-badge">Hoy</span>}
+                </div>
+                <span className="schedule-edit-day-meta">
+                  Día {dayIndex + 1} de {rows.length}
+                  {row.locked ? ' · Confirmado' : currentDayDirty ? ' · Sin guardar' : ' · Editable'}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                className="meal-lookup-nav-btn"
+                onClick={() => {
+                  goToDay(1)
+                  setActiveField('nav')
+                }}
+                disabled={saving || dayIndex >= rows.length - 1}
+                aria-label="Día siguiente"
+              >
+                ›
+              </button>
+
+              <button
+                type="button"
+                className={`meal-lookup-today-btn ${isToday ? 'meal-lookup-today-btn-active' : ''}`}
+                onClick={goToToday}
+                disabled={saving}
+              >
+                Hoy
+              </button>
+            </div>
+
+            <div className={`schedule-edit-day-panel ${row.locked ? 'schedule-edit-day-panel-locked' : ''}`}>
+              {row.locked ? (
+                <p className="schedule-edit-locked-note">
+                  Este día ya fue confirmado y no se puede modificar.
+                </p>
+              ) : null}
+
+              <div className="schedule-edit-depot-row">
+                <EmployeePickerField
+                  label={depot1Label}
+                  value={row.depot1EmployeeId}
+                  employees={employees}
+                  options={depot1Options}
+                  disabled={row.locked}
+                  isFocused={activeField === 'depot1' && openPicker === null}
+                  isOpen={openPicker === 1}
+                  focusedOptionIndex={pickerIndex}
+                  optionRefs={optionRefs}
+                  onOpen={() => {
+                    setActiveField('depot1')
+                    openPickerFor(1, row)
+                  }}
+                  onSelect={id => {
+                    updateDepot(row.date, 1, id)
+                    closePicker()
+                  }}
+                />
+
+                {!row.locked && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary schedule-edit-swap-btn"
+                    onClick={() => swapDepots(row.date)}
+                    title="Intercambiar depósitos"
+                    aria-label="Intercambiar depósitos"
+                  >
+                    ⇄
+                  </button>
+                )}
+
+                <EmployeePickerField
+                  label={depot2Label}
+                  value={row.depot2EmployeeId}
+                  employees={employees}
+                  options={depot2Options}
+                  disabled={row.locked}
+                  isFocused={activeField === 'depot2' && openPicker === null}
+                  isOpen={openPicker === 2}
+                  focusedOptionIndex={pickerIndex}
+                  optionRefs={optionRefs}
+                  onOpen={() => {
+                    setActiveField('depot2')
+                    openPickerFor(2, row)
+                  }}
+                  onSelect={id => {
+                    updateDepot(row.date, 2, id)
+                    closePicker()
+                  }}
+                />
+              </div>
+
+              {row.locked && (
+                <span className="schedule-edit-locked-badge" title="Día confirmado">🔒 Confirmado</span>
+              )}
+            </div>
+          </>
         )}
 
         <div className="schedule-edit-actions">
