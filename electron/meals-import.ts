@@ -2,7 +2,7 @@ import { dialog } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import { PDFParse } from 'pdf-parse'
-import { parseCateringMenuText, inferMonthFromFilename } from './meals-parser'
+import { parseCateringMenuText, inferMonthFromFilename, inferYearFromMenuText } from './meals-parser'
 import { saveMealMenu } from './meals-database'
 import { getMealsDir } from './paths'
 
@@ -40,6 +40,10 @@ export async function importMealMenuPdf(
     const parser = new PDFParse({ data: buffer })
     const textResult = await parser.getText()
     await parser.destroy()
+
+    const inferredYear = inferYearFromMenuText(textResult.text)
+    if (inferredYear) resolvedYear = inferredYear
+
     const days = parseCateringMenuText(textResult.text, resolvedYear, resolvedMonth)
 
     if (days.length === 0) {

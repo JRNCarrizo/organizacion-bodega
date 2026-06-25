@@ -13,14 +13,323 @@ export interface ParsedMealDay {
   options: ParsedMealOption[]
 }
 
-const DAY_HEADER = /^(LUNES|MARTES|MIERCOLES|MIÉRCOLES|JUEVES|VIERNES|SÁBADO|SABADO|DOMINGO)\s+(\d{1,2})$/i
 const PAGE_BREAK = /^--\s*\d+\s+of\s+\d+\s*--$/i
+const WEEKDAY_NAMES = ['DOMINGO', 'LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO']
+
+const NEW_FORMAT_CATEGORY_ROW =
+  /^[\u{1F300}-\u{1FAFF}]?\s*(Carne|Pollo|Veggie|Ensalada|Pasta(?:\s+(?:simple|rellena))?|Tarta|Omelette|Tortilla)\s+(.+)$/iu
+
+const HOLIDAY_LINE =
+  /(?:Lun|Mar|Mie|Mi[eé]|Jue|Vie|S[aá]b|Dom)\s+(\d{1,2})\b.*SIN\s+SERVICIO/i
+
+/** Segunda opción suele arrancar con estos prefijos (más específicos primero). */
+const OPTION2_STARTERS = [
+  'Pan de carne relleno',
+  'Pan de carne con',
+  'Sandwich de milanesa',
+  'Sandwich de pollo',
+  'Sandwich de pastr',
+  'Roll de pollo relleno',
+  'Roll de pollo fugaz',
+  'Roll de carne con',
+  'Wrap de pollo americano',
+  'Wrap de pollo y espinaca',
+  'Wrap de pollo capres',
+  'Wrap de pollo Teriyaky',
+  'Wrap de Calabaza',
+  'Wrap de calabaza',
+  'Wrap americano con',
+  'Wrap norteño con',
+  'Wrap veggie con',
+  'Arroz amarillo con',
+  'Carne al horno a la',
+  'Carne al horno con',
+  'Pollo al disco con',
+  'Pollo al champignon con',
+  'Pollo grillé a la',
+  'Pollo grillé al',
+  'Pollo grillé napolitano',
+  'Pollo grillé solo',
+  'Cuarto de pollo al',
+  'Cuarto de pollo a la',
+  'Hamburguesa de pollo',
+  'Hamburguesa Argenta',
+  'Hamburguesa veggie',
+  'Hamburguesa 4 quesos',
+  'Milanesa de berenjena',
+  'Milanesa de soja',
+  'Milanesa de calabaza',
+  'Milanesa florentina',
+  'Milanesa calabresa',
+  'Milanesa provenzal',
+  'Milanesa a la suiza',
+  'Milanesa con ensalada',
+  'Milanesa napolitana',
+  'Cazuela de arroz',
+  'Cazuela de lentejas',
+  'Cazuela de fideos',
+  'Suprema napolitana',
+  'Suprema provenzal',
+  'Suprema a la Suiza',
+  'Suprema a la parmesana',
+  'Suprema a los 4',
+  'Suprema florentina',
+  'Suprema calabresa',
+  'Medallón de pollo',
+  'Medallón de carne',
+  'Empanadas de pollo',
+  'Empanadas de humita',
+  'Empanadas de calabaza',
+  'Empanadas capresse',
+  'Empanadas jardineras',
+  'Albóndigas rellenas',
+  'Albóndigas de papa',
+  'Albóndigas de ricota',
+  'Alitas de pollo',
+  'Alita de pollo',
+  'Bomba de papa',
+  'Budín de calabaza',
+  'Budín tricolor',
+  'Papa rellena veggie',
+  'Papa rellena de carne',
+  'Zapallitos rellenos',
+  'Berenjenas rellenas',
+  'Chow Mien de',
+  'Chow mien de',
+  'Chiken Pie con',
+  'Tacos de pollo',
+  'Tacos de carne',
+  'Tacos veggie',
+  'Bifecitos a la',
+  'Strogonoff de carne',
+  'Matambre a la',
+  'Bondiola a la',
+  'Ossobuco al disco',
+  'Cerdo a la',
+  'Pastel de papa',
+  'Pastel de cerdo',
+  'Guiso de mondongo',
+  'Wok de pollo',
+  'Wok de carne',
+  'Wok veggie',
+  'Risotto de hongos',
+  'Risotto de albahaca',
+  'Risotto de remolacha',
+  'Rissoto de hongos',
+  'Seitán a la',
+  'Seitán al verdeo',
+  'Polenta con salsa',
+  'Calzón caprese',
+  'Arroz a la cubana',
+  'Pan de carne',
+  'Chorizos a la',
+  'Sanwich de desmechado',
+  'Omelette caprese',
+  'Omelette completo',
+  'Omelette fugazzeto',
+  'Omelette veggie',
+  'Omelette napolitano',
+  'Omelette de verdeo',
+  'Omelette de espinaca',
+  'Omelette de jamón',
+  'Omelette queso azul',
+  'Tortilla de zapallito',
+  'Tortilla de hojas',
+  'Tortilla de papas',
+  'Tortilla veggie',
+  'Tortilla española',
+  'Tarta de espinaca',
+  'Tarta de jamón',
+  'Tarta de puerro',
+  'Tarta de coliflor',
+  'Tarta de calabaza',
+  'Tarta de brócoli',
+  'Tarta de pollo',
+  'Tarta de zapallitos',
+  'Tarta de humita',
+  'Tarta de fugazzeta',
+  'Tarta pascualina',
+  'Tarta caprese',
+  'Tarta criolla',
+  'Tarta veggie',
+  'Cazuela ',
+  'Milanesa ',
+  'Hamburguesa ',
+  'Matambre ',
+  'Bondiola ',
+  'Wrap ',
+  'Carne ',
+  'Pollo ',
+  'Roll ',
+  'Wok ',
+  'Tacos ',
+  'Arroz ',
+  'Empanadas ',
+  'Albóndigas ',
+  'Medallón ',
+  'Suprema ',
+  'Seitán ',
+  'Bomba ',
+  'Papa rellena ',
+  'Zapallitos ',
+  'Berenjenas ',
+  'Pastel ',
+  'Guiso ',
+  'Cerdo ',
+  'Ossobuco ',
+  'Bifecitos ',
+  'Chow ',
+  'Sandwich ',
+  'Sanwich ',
+  'Chorizos ',
+  'Pan de ',
+  'Risotto ',
+  'Rissoto ',
+  'Calzón ',
+  'Polenta ',
+  'Budín ',
+  'Chiken ',
+  'Tortilla ',
+  'Omelette ',
+  'Tarta '
+]
 
 function normalizeLine(line: string): string {
   return line.replace(/\t/g, ' ').replace(/\s+/g, ' ').trim()
 }
 
-function parseCategoryLine(line: string): { category: MealCategory; inlineDescription?: string } | null {
+function getWeekdayLabel(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return WEEKDAY_NAMES[new Date(y, m - 1, d).getDay()]
+}
+
+function isNewCateringFormat(text: string): boolean {
+  return /Categor[ií]a\s+Opci[oó]n\s+1\s+Opci[oó]n\s+2/i.test(text)
+    || /^[\u{1F300}-\u{1FAFF}]?\s*Carne\s+/mu.test(text)
+}
+
+function mapCategory(raw: string): MealCategory {
+  const upper = raw.toUpperCase().trim()
+  if (upper.startsWith('PASTA')) return 'PASTAS'
+  if (upper === 'TORTILLA') return 'OMELETTE'
+  return upper as MealCategory
+}
+
+function splitTwoOptions(text: string): [string, string] {
+  const minFirst = 10
+  for (const starter of OPTION2_STARTERS) {
+    const idx = text.indexOf(starter)
+    if (idx >= minFirst) {
+      return [text.slice(0, idx).trim(), text.slice(idx).trim()]
+    }
+  }
+  return [text.trim(), '']
+}
+
+function stripRepeatedCategoryPrefix(content: string, category: MealCategory): string {
+  if (category === 'TARTA' && /^Tarta\s+/i.test(content)) {
+    return content.replace(/^Tarta\s+/i, '')
+  }
+  if (category === 'OMELETTE') {
+    if (/^Tortilla\s+/i.test(content)) return content.replace(/^Tortilla\s+/i, '')
+    if (/^Omelette\s+/i.test(content)) return content.replace(/^Omelette\s+/i, '')
+  }
+  if (category === 'PASTAS') {
+    return content.replace(/^Pasta\s+(?:simple|rellena)\s+/i, '')
+  }
+  return content
+}
+
+function parseCategoryRow(line: string): ParsedMealOption[] {
+  const match = line.match(NEW_FORMAT_CATEGORY_ROW)
+  if (!match) return []
+
+  const category = mapCategory(match[1])
+  let content = stripRepeatedCategoryPrefix(match[2].trim(), category)
+  const options: ParsedMealOption[] = []
+
+  if (category === 'ENSALADA' || category === 'PASTAS') {
+    options.push({ category, description: content, optionIndex: 1 })
+    return options
+  }
+
+  const [opt1, opt2] = splitTwoOptions(content)
+  options.push({ category, description: opt1, optionIndex: 1 })
+  if (opt2) {
+    options.push({ category, description: opt2, optionIndex: 2 })
+  }
+  return options
+}
+
+function extractSkipDays(lines: string[]): Set<number> {
+  const skip = new Set<number>()
+  for (const line of lines) {
+    const match = line.match(HOLIDAY_LINE)
+    if (match) skip.add(parseInt(match[1], 10))
+  }
+  return skip
+}
+
+function getServiceDays(year: number, month: number, skipDays: Set<number>): string[] {
+  const daysInMonth = new Date(year, month, 0).getDate()
+  const dates: string[] = []
+  for (let d = 1; d <= daysInMonth; d++) {
+    if (skipDays.has(d)) continue
+    const dow = new Date(year, month - 1, d).getDay()
+    if (dow >= 1 && dow <= 5) {
+      dates.push(`${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`)
+    }
+  }
+  return dates
+}
+
+function extractCategoryLines(lines: string[]): string[] {
+  const rows: string[] = []
+  for (const line of lines) {
+    if (PAGE_BREAK.test(line)) continue
+    if (line.startsWith('Categoría') || line.startsWith('Categoria')) continue
+    if (NEW_FORMAT_CATEGORY_ROW.test(line)) rows.push(line)
+  }
+  return rows
+}
+
+function parseNewCateringMenuText(text: string, year: number, month: number): ParsedMealDay[] {
+  const lines = text.split('\n').map(normalizeLine).filter(Boolean)
+  const skipDays = extractSkipDays(lines)
+  const serviceDays = getServiceDays(year, month, skipDays)
+  const categoryLines = extractCategoryLines(lines)
+
+  const menus: ParsedMealOption[][] = []
+  for (let i = 0; i < categoryLines.length; i += 7) {
+    const chunk = categoryLines.slice(i, i + 7)
+    if (chunk.length === 0) continue
+    const dayOptions: ParsedMealOption[] = []
+    for (const row of chunk) {
+      dayOptions.push(...parseCategoryRow(row))
+    }
+    if (dayOptions.length > 0) menus.push(dayOptions)
+  }
+
+  const result: ParsedMealDay[] = []
+  const count = Math.min(menus.length, serviceDays.length)
+  for (let i = 0; i < count; i++) {
+    const date = serviceDays[i]
+    const dayNum = parseInt(date.split('-')[2], 10)
+    result.push({
+      date,
+      weekday: getWeekdayLabel(date),
+      dayNum,
+      options: menus[i]
+    })
+  }
+  return result
+}
+
+// --- Formato anterior (columnas por día) ---
+
+const LEGACY_DAY_HEADER = /^(LUNES|MARTES|MIERCOLES|MIÉRCOLES|JUEVES|VIERNES|SÁBADO|SABADO|DOMINGO)\s+(\d{1,2})$/i
+
+function parseLegacyCategoryLine(line: string): { category: MealCategory; inlineDescription?: string } | null {
   const upper = line.toUpperCase().trim()
 
   if (upper === 'OMELETTE' || upper === 'TORTILLA') {
@@ -46,8 +355,8 @@ function parseCategoryLine(line: string): { category: MealCategory; inlineDescri
   return null
 }
 
-function parseDayHeader(line: string): { weekday: string; day: number } | null {
-  const match = line.match(DAY_HEADER)
+function parseLegacyDayHeader(line: string): { weekday: string; day: number } | null {
+  const match = line.match(LEGACY_DAY_HEADER)
   if (!match) return null
   return {
     weekday: match[1].toUpperCase().replace('MIÉRCOLES', 'MIERCOLES').replace('SÁBADO', 'SABADO'),
@@ -59,16 +368,17 @@ function isCarneLeadWrap(line: string): boolean {
   return /^wrap\b/i.test(line)
 }
 
+interface CategoryEntry {
+  category: MealCategory
+  inlineDescription?: string
+}
+
 function getDishCategories(categories: CategoryEntry[]): MealCategory[] {
   return categories
     .filter(entry => entry.category !== 'ENSALADA')
     .map(entry => entry.category)
 }
 
-/**
- * Asignación en bloques: 1 o 2 platos seguidos por categoría.
- * Toma 2 solo si sobran platos para cubrir al menos 1 en cada categoría restante.
- */
 function assignPairedSequential(
   categories: MealCategory[],
   dishes: string[]
@@ -95,10 +405,6 @@ function assignPairedSequential(
   return options
 }
 
-/**
- * Algunos días arrancan con "Wrap ..." bajo el encabezado OMELETTE del PDF,
- * pero el plato es de CARNE. Luego sigue el resto en filas intercaladas.
- */
 function assignCarneLeadWrapLayout(
   categories: MealCategory[],
   dishes: string[]
@@ -145,7 +451,7 @@ function assignCarneLeadWrapLayout(
   return options
 }
 
-function buildDishOptions(
+function buildLegacyDishOptions(
   categories: CategoryEntry[],
   dishes: string[],
   ensaladaInline?: string
@@ -177,12 +483,7 @@ interface DayQueueItem {
   day: number
 }
 
-interface CategoryEntry {
-  category: MealCategory
-  inlineDescription?: string
-}
-
-export function parseCateringMenuText(text: string, year: number, month: number): ParsedMealDay[] {
+function parseLegacyCateringMenuText(text: string, year: number, month: number): ParsedMealDay[] {
   const lines = text
     .split('\n')
     .map(normalizeLine)
@@ -200,14 +501,12 @@ export function parseCateringMenuText(text: string, year: number, month: number)
   const flushDay = () => {
     if (dayQueue.length === 0 || categories.length === 0) return
 
-    // El PDF agrupa encabezados de fila (ej. MARTES 02 + MIERCOLES 03) y luego
-    // extrae los menús en orden de columna inverso: primero el de la derecha.
     const current = dayQueue.pop()!
     const ensaladaInline = categories.find(
       entry => entry.category === 'ENSALADA' && entry.inlineDescription
     )?.inlineDescription
 
-    const options = buildDishOptions(categories, dishes, ensaladaInline)
+    const options = buildLegacyDishOptions(categories, dishes, ensaladaInline)
 
     result.push({
       date: buildDate(current.day),
@@ -222,14 +521,14 @@ export function parseCateringMenuText(text: string, year: number, month: number)
   }
 
   for (const line of lines) {
-    const dayHeader = parseDayHeader(line)
+    const dayHeader = parseLegacyDayHeader(line)
     if (dayHeader) {
       if (phase === 'dishes') flushDay()
       dayQueue.push(dayHeader)
       continue
     }
 
-    const category = parseCategoryLine(line)
+    const category = parseLegacyCategoryLine(line)
     if (category) {
       if (category.category === 'CARNE' && phase === 'dishes') {
         flushDay()
@@ -256,6 +555,13 @@ export function parseCateringMenuText(text: string, year: number, month: number)
   return result.sort((a, b) => a.date.localeCompare(b.date))
 }
 
+export function parseCateringMenuText(text: string, year: number, month: number): ParsedMealDay[] {
+  if (isNewCateringFormat(text)) {
+    return parseNewCateringMenuText(text, year, month)
+  }
+  return parseLegacyCateringMenuText(text, year, month)
+}
+
 export function inferMonthFromFilename(filename: string): number | null {
   const months: Record<string, number> = {
     ENERO: 1, FEBRERO: 2, MARZO: 3, ABRIL: 4, MAYO: 5, JUNIO: 6,
@@ -266,4 +572,9 @@ export function inferMonthFromFilename(filename: string): number | null {
     if (upper.includes(name)) return num
   }
   return null
+}
+
+export function inferYearFromMenuText(text: string): number | null {
+  const match = text.match(/\b(20\d{2})\b/)
+  return match ? parseInt(match[1], 10) : null
 }
