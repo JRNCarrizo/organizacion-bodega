@@ -176,6 +176,10 @@ function chunkArray<T>(items: T[], chunkSize: number): T[][] {
 }
 
 const PLANILLA_WEEKDAYS = ['LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES'] as const
+const PLANILLA_MONTH_ABBR = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+] as const
 
 interface PlanillaColumn {
   date: string | null
@@ -226,6 +230,18 @@ function withBorderStyle(base: Record<string, unknown>, border: CellBorder): Rec
   return { ...base, border }
 }
 
+function formatPlanillaDate(isoDate: string): string {
+  const [, m, d] = isoDate.split('-').map(Number)
+  return `${d}-${PLANILLA_MONTH_ABBR[m - 1]}`
+}
+
+function getWeekdayLabelFromIso(isoDate: string): string {
+  const [y, m, d] = isoDate.split('-').map(Number)
+  const dow = new Date(y, m - 1, d).getDay()
+  if (dow >= 1 && dow <= 5) return PLANILLA_WEEKDAYS[dow - 1]
+  return PLANILLA_WEEKDAYS[0]
+}
+
 function getMondayOfWeek(date: Date): Date {
   const copy = new Date(date.getFullYear(), date.getMonth(), date.getDate())
   const dow = copy.getDay()
@@ -261,9 +277,10 @@ function buildPlanillaWeekBlocks(year: number, month: number): PlanillaWeekBlock
     for (let i = 0; i < 5; i++) {
       const current = addCalendarDays(weekMonday, i)
       const inMonth = current.getMonth() + 1 === month
+      const isoDate = inMonth ? formatIsoDate(current) : null
       days.push({
-        date: inMonth ? formatIsoDate(current) : null,
-        weekdayLabel: PLANILLA_WEEKDAYS[i]
+        date: isoDate,
+        weekdayLabel: isoDate ? getWeekdayLabelFromIso(isoDate) : PLANILLA_WEEKDAYS[i]
       })
     }
     blocks.push({ days })
@@ -340,24 +357,13 @@ function setPlanillaCell(
   col: number,
   border: CellBorder,
   baseStyle: Record<string, unknown>,
-  value?: string | number | Date,
-  dateFormat?: string
+  value?: string | number
 ) {
   const addr = XLSX.utils.encode_cell({ r: row, c: col })
   const style = withBorderStyle(baseStyle, border)
 
   if (value === undefined || value === '') {
     sheet[addr] = { s: style }
-    return
-  }
-
-  if (value instanceof Date) {
-    sheet[addr] = {
-      t: 'd',
-      v: value,
-      z: dateFormat ?? 'd-mmm',
-      s: style
-    }
     return
   }
 
@@ -419,15 +425,13 @@ function buildPlanillaWorksheet(year: number, month: number) {
       setPlanillaCell(sheet, dateRow, index + 1, border, HEADER_BASE)
       return
     }
-    const [y, m, d] = col.date.split('-').map(Number)
     setPlanillaCell(
       sheet,
       dateRow,
       index + 1,
       border,
       HEADER_BASE,
-      new Date(y, m - 1, d),
-      'd-mmm'
+      formatPlanillaDate(col.date)
     )
   })
 
