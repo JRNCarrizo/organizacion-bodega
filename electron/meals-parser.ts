@@ -17,7 +17,7 @@ const PAGE_BREAK = /^--\s*\d+\s+of\s+\d+\s*--$/i
 const WEEKDAY_NAMES = ['DOMINGO', 'LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO']
 
 const NEW_FORMAT_CATEGORY_ROW =
-  /^[\u{1F300}-\u{1FAFF}]?\s*(Carne|Pollo|Veggie|Ensalada|Pasta(?:\s+(?:simple|rellena))?|Tarta|Omelette|Tortilla)\s+(.+)$/iu
+  /^[\u{1F300}-\u{1FAFF}]?\s*(Carne|Pollo|Veggie|Ensalada|Pasta(?:\s+(?:simple|rellena))?|Tarta(?:\s+rellena)?|Omelette|Tortilla)\s+(.+)$/iu
 
 const HOLIDAY_LINE =
   /(?:Lun|Mar|Mie|Mi[eé]|Jue|Vie|S[aá]b|Dom)\s+(\d{1,2})\b.*SIN\s+SERVICIO/i
@@ -26,35 +26,55 @@ const HOLIDAY_LINE =
 const OPTION2_STARTERS = [
   'Pan de carne relleno',
   'Pan de carne con',
+  'Pan de carne',
   'Sandwich de milanesa',
   'Sandwich de pollo',
   'Sandwich de pastr',
+  'Sandwich de la',
+  'Sandwich de suprema',
+  'Sandwich de desmechado',
+  'Sanwich de desmechado',
   'Roll de pollo relleno',
   'Roll de pollo fugaz',
   'Roll de carne con',
   'Wrap de pollo americano',
   'Wrap de pollo y espinaca',
   'Wrap de pollo capres',
-  'Wrap de pollo Teriyaky',
+  'Wrap de pollo caesar',
+  'Wrap de pollo teriyaky',
+  'Wrap de pollo teriyaki',
   'Wrap de Calabaza',
   'Wrap de calabaza',
   'Wrap americano con',
+  'Wrap americano',
   'Wrap norteño con',
+  'Wrap norteño',
   'Wrap veggie con',
+  'Wrap veggie',
+  'Wrap criollo',
   'Arroz amarillo con',
+  'Arroz a la cubana',
   'Carne al horno a la',
   'Carne al horno con',
   'Pollo al disco con',
+  'Pollo al disco',
   'Pollo al champignon con',
+  'Pollo al champignon',
   'Pollo grillé a la',
+  'Pollo grille a la',
   'Pollo grillé al',
+  'Pollo grille al',
   'Pollo grillé napolitano',
+  'Pollo grille napolitano',
   'Pollo grillé solo',
+  'Pollo grille solo',
   'Cuarto de pollo al',
   'Cuarto de pollo a la',
   'Hamburguesa de pollo',
-  'Hamburguesa Argenta',
+  'Hamburguesa argenta',
   'Hamburguesa veggie',
+  'Hamburguessa veggie',
+  'Hamburguesa completa',
   'Hamburguesa 4 quesos',
   'Milanesa de berenjena',
   'Milanesa de soja',
@@ -63,28 +83,38 @@ const OPTION2_STARTERS = [
   'Milanesa calabresa',
   'Milanesa provenzal',
   'Milanesa a la suiza',
+  'Milanesa a los 4',
+  'Milanesa a caballo',
   'Milanesa con ensalada',
   'Milanesa napolitana',
   'Cazuela de arroz',
   'Cazuela de lentejas',
   'Cazuela de fideos',
   'Suprema napolitana',
+  'Suprrema napolitana',
   'Suprema provenzal',
   'Suprema a la Suiza',
   'Suprema a la parmesana',
   'Suprema a los 4',
   'Suprema florentina',
   'Suprema calabresa',
+  'Suprema fugazzetta',
   'Medallón de pollo',
   'Medallón de carne',
+  'Medallón veggie',
   'Empanadas de pollo',
   'Empanadas de humita',
   'Empanadas de calabaza',
+  'Empanadas de espinaca',
+  'Empanadas de carne',
   'Empanadas capresse',
+  'Empanadas caprese',
+  'Empanadas fugazzeta',
   'Empanadas jardineras',
   'Albóndigas rellenas',
   'Albóndigas de papa',
   'Albóndigas de ricota',
+  'Albóndigas a la',
   'Alitas de pollo',
   'Alita de pollo',
   'Bomba de papa',
@@ -92,19 +122,25 @@ const OPTION2_STARTERS = [
   'Budín tricolor',
   'Papa rellena veggie',
   'Papa rellena de carne',
+  'Papa rellena de pollo',
   'Zapallitos rellenos',
   'Berenjenas rellenas',
-  'Chow Mien de',
+  'Chow Mein de',
   'Chow mien de',
-  'Chiken Pie con',
+  'Chicken Pie',
+  'Chiken Pie',
   'Tacos de pollo',
   'Tacos de carne',
   'Tacos veggie',
   'Bifecitos a la',
   'Strogonoff de carne',
+  'Strogonoff de pollo',
   'Matambre a la',
   'Bondiola a la',
   'Ossobuco al disco',
+  'Osobuco al disco',
+  'Ossobuco ',
+  'Osobuco ',
   'Cerdo a la',
   'Pastel de papa',
   'Pastel de cerdo',
@@ -120,10 +156,17 @@ const OPTION2_STARTERS = [
   'Seitán al verdeo',
   'Polenta con salsa',
   'Calzón caprese',
-  'Arroz a la cubana',
-  'Pan de carne',
+  'Calzone capresse',
+  'Calzone caprese',
+  'Calzone fugazzeto',
+  'Calzone de jamón',
+  'Calzone de jamon',
+  'Bagel de carne',
+  'Bagel de pollo',
+  'Bagel veggie',
+  'Salpicón de ave',
+  'Salpicón ',
   'Chorizos a la',
-  'Sanwich de desmechado',
   'Omelette caprese',
   'Omelette completo',
   'Omelette fugazzeto',
@@ -155,6 +198,7 @@ const OPTION2_STARTERS = [
   'Cazuela ',
   'Milanesa ',
   'Hamburguesa ',
+  'Hamburguessa ',
   'Matambre ',
   'Bondiola ',
   'Wrap ',
@@ -168,6 +212,7 @@ const OPTION2_STARTERS = [
   'Albóndigas ',
   'Medallón ',
   'Suprema ',
+  'Suprrema ',
   'Seitán ',
   'Bomba ',
   'Papa rellena ',
@@ -176,7 +221,6 @@ const OPTION2_STARTERS = [
   'Pastel ',
   'Guiso ',
   'Cerdo ',
-  'Ossobuco ',
   'Bifecitos ',
   'Chow ',
   'Sandwich ',
@@ -186,13 +230,28 @@ const OPTION2_STARTERS = [
   'Risotto ',
   'Rissoto ',
   'Calzón ',
+  'Calzone ',
+  'Bagel ',
   'Polenta ',
   'Budín ',
+  'Chicken ',
   'Chiken ',
+  'Salpicón ',
   'Tortilla ',
   'Omelette ',
   'Tarta '
 ]
+
+/** Evita cortar dentro de "Cuarto de Pollo...", "Milanesa a Caballo...", etc. */
+const SPLIT_CONNECTOR_BEFORE =
+  /(?:^|[\s,.(])(?:de|del|al|a|a la|a los|a las|con|y|e|en|o|u)$/i
+
+/**
+ * Finales típicos de la opción 1 (guarnición / aderezo).
+ * Sirve para detectar opción 2 aunque el plato sea nuevo.
+ */
+const OPTION1_SIDE_ENDING =
+  /(?:fritas|horno|tomate|lechuga|repollo|papa|papas|arroz|blanco|mixto|crema|cheddar|nachos|huevo|r[uú]cula|remolacha|zanahoria|verdeo|fileto|provenzal|espa[nñ]ola|portuguesa|napolitana|suiza|capresse|fugazzett?[ao]|mostaza|barbacoa|lim[oó]n|naranja|queso|muzarella|muzzarella|ricotta|ricota|batatas|r[uú]sticas|cubana|criolla|riojana)\s*$/i
 
 function normalizeLine(line: string): string {
   return line.replace(/\t/g, ' ').replace(/\s+/g, ' ').trim()
@@ -211,33 +270,111 @@ function isNewCateringFormat(text: string): boolean {
 function mapCategory(raw: string): MealCategory {
   const upper = raw.toUpperCase().trim()
   if (upper.startsWith('PASTA')) return 'PASTAS'
+  if (upper.startsWith('TARTA')) return 'TARTA'
   if (upper === 'TORTILLA') return 'OMELETTE'
   return upper as MealCategory
 }
 
+function indexOfIgnoreCase(haystack: string, needle: string): number {
+  return haystack.toLowerCase().indexOf(needle.toLowerCase())
+}
+
+function isWordStart(text: string, idx: number): boolean {
+  if (idx <= 0) return true
+  return !/[\p{L}\p{N}_]/u.test(text[idx - 1])
+}
+
+function isFalsePositiveOptionSplit(text: string, idx: number): boolean {
+  if (!isWordStart(text, idx)) return true
+  const before = text.slice(0, idx).replace(/\s+$/, '')
+  return SPLIT_CONNECTOR_BEFORE.test(before)
+}
+
+/** Posibles inicios de opción 2: palabra con mayúscula después de un espacio. */
+function findOption2Candidates(text: string, minFirst: number): number[] {
+  const candidates: number[] = []
+  const re = /[A-ZÁÉÍÓÚÜÑ]/gu
+  for (let i = minFirst; i < text.length; i++) {
+    if (!re.test(text[i])) continue
+    if (!isWordStart(text, i)) continue
+    if (isFalsePositiveOptionSplit(text, i)) continue
+    candidates.push(i)
+  }
+  return candidates
+}
+
+function startsWithKnownDish(text: string): boolean {
+  const lower = text.toLowerCase()
+  return OPTION2_STARTERS.some(starter => lower.startsWith(starter.toLowerCase()))
+}
+
+/**
+ * Separa opción 1 y 2 en la misma línea.
+ * 1) Prefiere un corte que coincida con un plato conocido.
+ * 2) Si el plato es nuevo, corta después de una guarnición típica
+ *    (fritas, horno, tomate, etc.) ante una palabra con mayúscula.
+ */
 function splitTwoOptions(text: string): [string, string] {
   const minFirst = 10
-  for (const starter of OPTION2_STARTERS) {
-    const idx = text.indexOf(starter)
-    if (idx >= minFirst) {
+  const candidates = findOption2Candidates(text, minFirst)
+
+  for (const idx of candidates) {
+    if (startsWithKnownDish(text.slice(idx))) {
       return [text.slice(0, idx).trim(), text.slice(idx).trim()]
     }
+  }
+
+  const afterSide = candidates.filter(idx =>
+    OPTION1_SIDE_ENDING.test(text.slice(0, idx).replace(/\s+$/, ''))
+  )
+  if (afterSide.length > 0) {
+    const idx = afterSide[afterSide.length - 1]
+    return [text.slice(0, idx).trim(), text.slice(idx).trim()]
+  }
+
+  // Fallback: starters aunque no haya mayúscula clara (platos en minúscula)
+  let bestIdx = -1
+  for (const starter of OPTION2_STARTERS) {
+    let from = 0
+    while (from < text.length) {
+      const rel = indexOfIgnoreCase(text.slice(from), starter)
+      if (rel < 0) break
+      const idx = from + rel
+      if (idx >= minFirst && !isFalsePositiveOptionSplit(text, idx)) {
+        if (bestIdx < 0 || idx < bestIdx) bestIdx = idx
+        break
+      }
+      from = idx + 1
+    }
+  }
+
+  if (bestIdx >= 0) {
+    return [text.slice(0, bestIdx).trim(), text.slice(bestIdx).trim()]
   }
   return [text.trim(), '']
 }
 
 function stripRepeatedCategoryPrefix(content: string, category: MealCategory): string {
-  if (category === 'TARTA' && /^Tarta\s+/i.test(content)) {
-    return content.replace(/^Tarta\s+/i, '')
+  let result = content.trim()
+  if (category === 'TARTA') {
+    result = result.replace(/^rellena\s+/i, '')
+    // Solo saca el prefijo redundante si no es "Tarta de ..."
+    if (/^Tarta\s+(?!de\b)/i.test(result)) {
+      result = result.replace(/^Tarta\s+/i, '')
+    }
+    return result
   }
   if (category === 'OMELETTE') {
-    if (/^Tortilla\s+/i.test(content)) return content.replace(/^Tortilla\s+/i, '')
-    if (/^Omelette\s+/i.test(content)) return content.replace(/^Omelette\s+/i, '')
+    // "Omelette Omelette Completo" / "Omelette Jamón..."; conservar "Tortilla de ..."
+    while (/^(?:Tortilla|Omelette)\s+(?!de\b)/i.test(result)) {
+      result = result.replace(/^(?:Tortilla|Omelette)\s+/i, '')
+    }
+    return result
   }
   if (category === 'PASTAS') {
-    return content.replace(/^Pasta\s+(?:simple|rellena)\s+/i, '')
+    return result.replace(/^Pasta\s+(?:simple|rellena)\s+/i, '')
   }
-  return content
+  return result
 }
 
 function parseCategoryRow(line: string): ParsedMealOption[] {
@@ -248,7 +385,13 @@ function parseCategoryRow(line: string): ParsedMealOption[] {
   let content = stripRepeatedCategoryPrefix(match[2].trim(), category)
   const options: ParsedMealOption[] = []
 
-  if (category === 'ENSALADA' || category === 'PASTAS') {
+  // Ensalada / pastas / tarta / omelette: una sola opción en el PDF del catering.
+  if (
+    category === 'ENSALADA'
+    || category === 'PASTAS'
+    || category === 'TARTA'
+    || category === 'OMELETTE'
+  ) {
     options.push({ category, description: content, optionIndex: 1 })
     return options
   }
