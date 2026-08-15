@@ -1,6 +1,6 @@
 {
   "name": "organizacion-bodega",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "Plataforma de organización de empleados - Bodega",
   "main": "dist-electron/main.js",
   "author": "JRNCarrizo",
@@ -53,6 +53,16 @@
       "dist/**/*",
       "dist-electron/**/*"
     ],
+    "extraResources": [
+      {
+        "from": "build/icon.png",
+        "to": "icon.png"
+      },
+      {
+        "from": "build/icon.ico",
+        "to": "icon.ico"
+      }
+    ],
     "win": {
       "icon": "build/icon.ico",
       "target": [
@@ -62,8 +72,7 @@
             "x64"
           ]
         }
-      ],
-      "signAndEditExecutable": false
+      ]
     },
     "nsis": {
       "oneClick": false,

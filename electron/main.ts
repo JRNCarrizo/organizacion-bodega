@@ -53,6 +53,8 @@ if (process.platform === 'win32') {
 
 function resolveWindowIcon() {
   const candidates = [
+    path.join(process.resourcesPath, 'icon.png'),
+    path.join(process.resourcesPath, 'icon.ico'),
     path.join(__dirname, '../build/icon.png'),
     path.join(__dirname, '../dist/icon.png'),
     path.join(__dirname, '../build/icon.ico')
