@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
+import appIcon from '../assets/app-icon.png'
 
 const STORAGE_KEY = 'sidebar-collapsed'
 
@@ -23,7 +24,7 @@ export default function Sidebar() {
     <aside className={`sidebar ${collapsed ? 'sidebar-collapsed' : ''}`}>
       <div className="sidebar-brand">
         <div className="sidebar-brand-main">
-          <div className="sidebar-brand-badge" aria-hidden="true">OB</div>
+          <img className="sidebar-brand-badge" src={appIcon} alt="" />
           {!collapsed && (
             <div className="sidebar-brand-copy">
               <h1>Organización Bodega</h1>

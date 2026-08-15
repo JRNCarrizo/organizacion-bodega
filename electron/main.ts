@@ -1,5 +1,6 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, nativeImage } from 'electron'
 import path from 'path'
+import fs from 'fs'
 import {
   initDatabase,
   resetAllSchedule,
@@ -46,19 +47,41 @@ import { showFileInExplorer } from './shell-utils'
 
 let mainWindow: BrowserWindow | null = null
 
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.organizacionbodega.app')
+}
+
+function resolveWindowIcon() {
+  const candidates = [
+    path.join(__dirname, '../build/icon.png'),
+    path.join(__dirname, '../dist/icon.png'),
+    path.join(__dirname, '../build/icon.ico')
+  ]
+  const filePath = candidates.find(candidate => fs.existsSync(candidate))
+  if (!filePath) return undefined
+  const image = nativeImage.createFromPath(filePath)
+  return image.isEmpty() ? undefined : image
+}
+
 function createWindow() {
+  const icon = resolveWindowIcon()
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     minWidth: 900,
     minHeight: 600,
     title: 'Organización Bodega',
+    ...(icon ? { icon } : {}),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false
     }
   })
+
+  if (icon) {
+    mainWindow.setIcon(icon)
+  }
 
   if (process.env.VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL)

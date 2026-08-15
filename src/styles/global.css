@@ -113,19 +113,12 @@ body {
 .sidebar-brand-badge {
   width: 44px;
   height: 44px;
-  border-radius: 14px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.95rem;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  color: #ffffff;
-  background: linear-gradient(145deg, #60a5fa 0%, #2563eb 100%);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.22) inset,
-    0 6px 16px rgba(37, 99, 235, 0.28);
+  border-radius: 50%;
+  display: block;
+  object-fit: cover;
   flex-shrink: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .sidebar-brand-copy {
@@ -458,8 +451,8 @@ body {
 }
 
 .stretch-tabs {
-  display: inline-flex;
-  flex-wrap: wrap;
+  display: flex;
+  flex-wrap: nowrap;
   gap: 6px;
   margin-bottom: 24px;
   padding: 6px;
@@ -467,11 +460,12 @@ body {
   border: 1px solid var(--border);
   border-radius: 14px;
   box-shadow: var(--shadow);
-  width: fit-content;
-  max-width: 100%;
+  width: 100%;
 }
 
 .stretch-tab {
+  flex: 1 1 0;
+  min-width: 0;
   min-height: 44px;
   padding: 10px 18px;
   border: 1px solid transparent;
@@ -754,6 +748,29 @@ body {
   border: 1px solid var(--border);
   border-radius: 16px;
   box-shadow: var(--shadow);
+}
+
+.schedule-toolbar-stretch {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.schedule-toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.schedule-toolbar-stretch .schedule-view-toggle {
+  margin-left: auto;
+  flex-shrink: 0;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.schedule-toolbar-stretch .schedule-toolbar-actions {
+  margin-left: 0;
 }
 
 .schedule-toolbar-month {
@@ -5239,6 +5256,16 @@ body {
   margin-bottom: 0;
 }
 
+.meals-page .meals-toolbar {
+  align-items: flex-start;
+}
+
+.meals-page .meals-toolbar .schedule-toolbar-actions {
+  margin-left: 0;
+  width: 100%;
+  justify-content: flex-start;
+}
+
 .meals-empty-card {
   display: flex;
   flex-direction: column;
@@ -6428,30 +6455,25 @@ body {
 
   .stretch-tabs {
     width: 100%;
-    justify-content: center;
   }
 
   .stretch-tab {
-    flex: 1 1 auto;
+    flex: 1 1 0;
     min-width: 0;
     padding: 10px 12px;
     font-size: 0.8rem;
   }
 
   .schedule-toolbar {
-    flex-wrap: wrap;
-    justify-content: center;
     gap: 12px;
     padding: 12px;
   }
 
   .schedule-toolbar-month {
-    width: 100%;
     justify-content: center;
   }
 
   .schedule-toolbar-actions {
-    margin-left: 0;
     width: 100%;
     justify-content: center;
   }
@@ -6480,10 +6502,6 @@ body {
   .schedule-day-actions {
     width: 100%;
     flex-wrap: wrap;
-  }
-
-  .schedule-view-toggle {
-    width: 100%;
   }
 
   .schedule-help-bubble {
@@ -6716,18 +6734,12 @@ body {
   }
 
   .stretch-tabs {
-    overflow-x: auto;
-    scrollbar-width: none;
+    overflow: visible;
     flex-wrap: nowrap;
-    justify-content: flex-start;
-  }
-
-  .stretch-tabs::-webkit-scrollbar {
-    display: none;
   }
 
   .stretch-tab {
-    flex: 0 0 auto;
+    flex: 1 1 0;
     font-size: 0.78rem;
     padding: 10px 14px;
   }
