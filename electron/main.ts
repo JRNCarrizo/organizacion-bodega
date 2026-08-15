@@ -48,7 +48,7 @@ import { showFileInExplorer } from './shell-utils'
 let mainWindow: BrowserWindow | null = null
 
 if (process.platform === 'win32') {
-  app.setAppUserModelId('com.organizacionbodega.app')
+  app.setAppUserModelId('com.organizacionbodega.app.v2')
 }
 
 function resolveWindowIcon() {
