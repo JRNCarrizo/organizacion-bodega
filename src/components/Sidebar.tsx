@@ -6,7 +6,8 @@ const STORAGE_KEY = 'sidebar-collapsed'
 const MODULE_LINKS = [
   { to: '/empleados', end: false, icon: '👥', label: 'Empleados' },
   { to: '/', end: true, icon: '♻️', label: 'Stretch' },
-  { to: '/comidas', end: false, icon: '🍽️', label: 'Menú de Comidas' }
+  { to: '/comidas', end: false, icon: '🍽️', label: 'Menú de Comidas' },
+  { to: '/pedidos', end: false, icon: '🛒', label: 'Pedidos' }
 ] as const
 
 export default function Sidebar() {

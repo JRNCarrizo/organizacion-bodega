@@ -80,6 +80,24 @@ const api = {
     ) => ipcRenderer.invoke('meals:setSelection', year, month, employeeId, date, mealOptionId),
     exportPdf: (year: number, month: number) => ipcRenderer.invoke('meals:exportPdf', year, month),
     exportExcel: (year: number, month: number) => ipcRenderer.invoke('meals:exportExcel', year, month)
+  },
+  supplies: {
+    getItems: () => ipcRenderer.invoke('supplies:getItems'),
+    getOrder: (year: number, month: number) => ipcRenderer.invoke('supplies:getOrder', year, month),
+    getHistory: () => ipcRenderer.invoke('supplies:getHistory'),
+    addLine: (year: number, month: number, name: string, quantity: number, unit: string, note = '') =>
+      ipcRenderer.invoke('supplies:addLine', year, month, name, quantity, unit, note),
+    updateLine: (
+      lineId: number,
+      updates: { quantity?: number; unit?: string; requested?: boolean; note?: string }
+    ) => ipcRenderer.invoke('supplies:updateLine', lineId, updates),
+    removeLine: (lineId: number) => ipcRenderer.invoke('supplies:removeLine', lineId),
+    setNotes: (year: number, month: number, notes: string) =>
+      ipcRenderer.invoke('supplies:setNotes', year, month, notes),
+    copyPrevious: (year: number, month: number) =>
+      ipcRenderer.invoke('supplies:copyPrevious', year, month),
+    deactivateItem: (id: number) => ipcRenderer.invoke('supplies:deactivateItem', id),
+    exportPdf: (year: number, month: number) => ipcRenderer.invoke('supplies:exportPdf', year, month)
   }
 }
 

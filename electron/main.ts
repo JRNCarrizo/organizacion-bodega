@@ -28,6 +28,19 @@ import { exportSchedulePdf } from './pdf-export'
 import { initMealsSchema, getMealMenu, getMealDays, getMealSelections, setMealSelection } from './meals-database'
 import { importMealMenuPdf } from './meals-import'
 import { exportMealMenuPdf, exportMealMenuExcel } from './meals-export'
+import {
+  initSuppliesSchema,
+  getSupplyItems,
+  getSupplyOrder,
+  getSupplyHistory,
+  addSupplyLine,
+  updateSupplyLine,
+  removeSupplyLine,
+  setSupplyOrderNotes,
+  copyPreviousSupplyOrder,
+  deactivateSupplyItem
+} from './supplies-database'
+import { exportSupplyOrderPdf } from './supplies-export'
 import { bindUpdateWindow, registerUpdaterHandlers, checkForUpdatesOnStartup } from './updater'
 import { showFileInExplorer } from './shell-utils'
 
@@ -61,6 +74,7 @@ app.whenReady().then(() => {
   registerUpdaterHandlers()
   initDatabase()
   initMealsSchema()
+  initSuppliesSchema()
   createWindow()
   checkForUpdatesOnStartup()
 
@@ -164,5 +178,42 @@ ipcMain.handle('meals:setSelection', (
 })
 ipcMain.handle('meals:exportPdf', (_e, year: number, month: number) => exportMealMenuPdf(year, month))
 ipcMain.handle('meals:exportExcel', (_e, year: number, month: number) => exportMealMenuExcel(year, month))
+
+ipcMain.handle('supplies:getItems', () => getSupplyItems())
+ipcMain.handle('supplies:getOrder', (_e, year: number, month: number) => getSupplyOrder(year, month))
+ipcMain.handle('supplies:getHistory', () => getSupplyHistory())
+ipcMain.handle('supplies:addLine', (
+  _e,
+  year: number,
+  month: number,
+  name: string,
+  quantity: number,
+  unit: string,
+  note: string
+) => addSupplyLine(year, month, name, quantity, unit, note))
+ipcMain.handle('supplies:updateLine', (
+  _e,
+  lineId: number,
+  updates: { quantity?: number; unit?: string; requested?: boolean; note?: string }
+) => {
+  updateSupplyLine(lineId, updates)
+  return true
+})
+ipcMain.handle('supplies:removeLine', (_e, lineId: number) => {
+  removeSupplyLine(lineId)
+  return true
+})
+ipcMain.handle('supplies:setNotes', (_e, year: number, month: number, notes: string) => {
+  setSupplyOrderNotes(year, month, notes)
+  return true
+})
+ipcMain.handle('supplies:copyPrevious', (_e, year: number, month: number) =>
+  copyPreviousSupplyOrder(year, month)
+)
+ipcMain.handle('supplies:deactivateItem', (_e, id: number) => {
+  deactivateSupplyItem(id)
+  return true
+})
+ipcMain.handle('supplies:exportPdf', (_e, year: number, month: number) => exportSupplyOrderPdf(year, month))
 
 ipcMain.handle('app:showItemInFolder', (_e, filePath: string) => showFileInExplorer(filePath))

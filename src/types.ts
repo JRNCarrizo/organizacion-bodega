@@ -104,3 +104,48 @@ export interface MonthlyStatsResult {
   unique_days_worked: number
   total_stretch_balls: number
 }
+
+export interface SupplyItem {
+  id: number
+  name: string
+  unit: string
+  active: number
+  created_at: string
+}
+
+export interface SupplyOrderLineView {
+  id: number
+  item_id: number
+  name: string
+  quantity: number
+  unit: string
+  requested: number
+  note: string
+  sort_order: number
+  last_quantity: number | null
+  last_unit: string | null
+  last_year: number | null
+  last_month: number | null
+}
+
+export interface SupplyOrderView {
+  id: number | null
+  year: number
+  month: number
+  notes: string
+  lines: SupplyOrderLineView[]
+  previous: { year: number; month: number } | null
+}
+
+export interface SupplyHistoryMonth {
+  year: number
+  month: number
+  line_count: number
+  requested_count: number
+}
+
+export interface SupplyCopyResult {
+  success: boolean
+  message: string
+  copied: number
+}
