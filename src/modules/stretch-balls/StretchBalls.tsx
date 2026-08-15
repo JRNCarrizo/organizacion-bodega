@@ -3,7 +3,6 @@ import { useAppRefresh } from '../../hooks/useAppRefresh'
 import SchedulePanel from './SchedulePanel'
 import StatsPanel from './StatsPanel'
 import SettingsPanel from './SettingsPanel'
-import appIcon from '../../assets/app-icon.png'
 
 type Tab = 'schedule' | 'stats' | 'settings'
 
@@ -14,7 +13,7 @@ export default function StretchBalls() {
   return (
     <div>
       <header className="stretch-page-header">
-        <img className="stretch-page-header-badge" src={appIcon} alt="" />
+        <div className="stretch-page-header-badge" aria-hidden="true">♻️</div>
         <div className="stretch-page-header-copy">
           <span className="stretch-page-header-kicker">Gestión de turnos</span>
           <h2 className="stretch-page-header-title">Stretch</h2>

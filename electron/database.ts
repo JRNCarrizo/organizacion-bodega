@@ -55,6 +55,7 @@ function getDbPath(): string {
 export function resetAllSchedule(): void {
   const database = initDatabase()
   database.prepare('DELETE FROM stretch_assignments').run()
+  setSettingValue('stretch_stock_baseline', '0')
 }
 
 export function initDatabase(): Database.Database {
@@ -126,6 +127,18 @@ function migrateDatabase(database: Database.Database): void {
       date TEXT PRIMARY KEY
     )
   `)
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS stretch_sales (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sold_on TEXT NOT NULL,
+      year INTEGER NOT NULL,
+      month INTEGER NOT NULL,
+      balls_count INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+    )
+  `)
+  database.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('stretch_stock_baseline', '0')").run()
 }
 
 export interface DepotSettings {
@@ -397,6 +410,113 @@ export function getMonthlyStats(year: number, month: number): MonthlyStatsResult
 
 export function getAllTimeStats(): MonthlyStatsResult {
   return queryStats(null)
+}
+
+export interface StretchSale {
+  id: number
+  sold_on: string
+  year: number
+  month: number
+  balls_count: number
+  created_at: string
+}
+
+export interface StretchStockResult {
+  current: number
+  last_sale: StretchSale | null
+  sales: StretchSale[]
+}
+
+export interface StretchSaleResult {
+  success: boolean
+  message: string
+  sale?: StretchSale
+}
+
+function getTotalConfirmedBalls(): number {
+  const database = initDatabase()
+  const row = database.prepare(`
+    SELECT COALESCE(SUM(balls_count), 0) as total
+    FROM stretch_assignments
+    WHERE balls_count > 0
+  `).get() as { total: number }
+  return row.total ?? 0
+}
+
+function getStockBaseline(): number {
+  const raw = Number.parseInt(getSettingValue('stretch_stock_baseline', '0'), 10)
+  return Number.isFinite(raw) && raw > 0 ? raw : 0
+}
+
+function mapStretchSale(row: StretchSale): StretchSale {
+  return {
+    id: row.id,
+    sold_on: row.sold_on,
+    year: row.year,
+    month: row.month,
+    balls_count: row.balls_count,
+    created_at: row.created_at
+  }
+}
+
+export function getStretchSales(): StretchSale[] {
+  const database = initDatabase()
+  const rows = database.prepare(`
+    SELECT id, sold_on, year, month, balls_count, created_at
+    FROM stretch_sales
+    ORDER BY sold_on DESC, id DESC
+  `).all() as StretchSale[]
+  return rows.map(mapStretchSale)
+}
+
+export function getStretchSalesForMonth(year: number, month: number): StretchSale[] {
+  const database = initDatabase()
+  const rows = database.prepare(`
+    SELECT id, sold_on, year, month, balls_count, created_at
+    FROM stretch_sales
+    WHERE year = ? AND month = ?
+    ORDER BY sold_on DESC, id DESC
+  `).all(year, month) as StretchSale[]
+  return rows.map(mapStretchSale)
+}
+
+export function getStretchStock(): StretchStockResult {
+  const sales = getStretchSales()
+  const current = Math.max(0, getTotalConfirmedBalls() - getStockBaseline())
+  return {
+    current,
+    last_sale: sales[0] ?? null,
+    sales
+  }
+}
+
+export function sellStretchStock(): StretchSaleResult {
+  const produced = getTotalConfirmedBalls()
+  const current = produced - getStockBaseline()
+  if (current <= 0) {
+    return { success: false, message: 'No hay bolas acumuladas para vender.' }
+  }
+
+  const soldOn = getTodayString()
+  const [year, month] = soldOn.split('-').map(Number)
+  const database = initDatabase()
+  const inserted = database.prepare(`
+    INSERT INTO stretch_sales (sold_on, year, month, balls_count)
+    VALUES (?, ?, ?, ?)
+  `).run(soldOn, year, month, current)
+  setSettingValue('stretch_stock_baseline', String(produced))
+
+  const sale = database.prepare(`
+    SELECT id, sold_on, year, month, balls_count, created_at
+    FROM stretch_sales
+    WHERE id = ?
+  `).get(inserted.lastInsertRowid) as StretchSale
+
+  return {
+    success: true,
+    message: `Se registró la venta de ${current} bola${current === 1 ? '' : 's'} de Stretch.`,
+    sale: mapStretchSale(sale)
+  }
 }
 
 export function saveScheduleDay(

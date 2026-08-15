@@ -392,11 +392,15 @@ body {
   flex-shrink: 0;
   width: 52px;
   height: 52px;
-  border-radius: 50%;
-  display: block;
-  object-fit: cover;
-  background: transparent;
-  box-shadow: none;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  background: linear-gradient(145deg, #60a5fa 0%, #2563eb 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.22) inset,
+    0 6px 16px rgba(37, 99, 235, 0.28);
 }
 
 .stretch-page-header-copy {
@@ -437,8 +441,10 @@ body {
 }
 
 [data-theme="light"] .stretch-page-header-badge {
-  background: transparent;
-  box-shadow: none;
+  background: linear-gradient(145deg, #3b82f6 0%, #1d4ed8 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.28) inset,
+    0 6px 16px rgba(29, 78, 216, 0.22);
 }
 
 .stretch-tabs {
@@ -630,6 +636,11 @@ body {
 .btn-danger:hover {
   background: var(--danger);
   color: white;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .btn-sm {
@@ -1187,6 +1198,170 @@ body {
   color: var(--text-secondary);
   margin-top: 4px;
   line-height: 1.35;
+}
+
+.stats-stock-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: stretch;
+}
+
+.stats-stock-card,
+.stats-sales-card {
+  min-height: 0;
+}
+
+.stats-stock-card {
+  display: flex;
+  align-items: stretch;
+  gap: 16px;
+  padding: 18px 20px;
+  background:
+    linear-gradient(135deg, rgba(168, 85, 247, 0.14) 0%, rgba(59, 130, 246, 0.06) 48%, transparent 100%),
+    var(--bg-card);
+  border: 1px solid rgba(168, 85, 247, 0.38);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+}
+
+.stats-stock-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  min-width: 0;
+  width: 100%;
+}
+
+.stats-stock-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  flex-shrink: 0;
+  background: rgba(168, 85, 247, 0.2);
+  color: #c084fc;
+}
+
+.stats-stock-kicker {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #c084fc;
+  margin-bottom: 4px;
+}
+
+.stats-stock-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.stats-stock-value-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 2px;
+}
+
+.stats-stock-value {
+  display: block;
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--text-primary);
+}
+
+.stats-stock-hint {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+.stats-stock-last {
+  margin-top: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.stats-stock-sell-btn {
+  flex-shrink: 0;
+  min-height: 38px;
+  padding: 8px 14px;
+  font-weight: 700;
+}
+
+.stats-sales-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px 20px;
+  box-shadow: var(--shadow);
+}
+
+.stats-sales-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.stats-sales-header h3 {
+  font-size: 1.02rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.stats-sales-empty {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.stats-sales-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow: auto;
+  max-height: 118px;
+}
+
+.stats-sales-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.stats-sales-date {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-transform: capitalize;
+}
+
+.stats-sales-count {
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: #c084fc;
 }
 
 .stats-empty {
@@ -2341,6 +2516,8 @@ body {
 [data-theme="light"] .settings-depot-card,
 [data-theme="light"] .stats-toolbar,
 [data-theme="light"] .stats-summary-card,
+[data-theme="light"] .stats-stock-card,
+[data-theme="light"] .stats-sales-card,
 [data-theme="light"] .stats-employee-card,
 [data-theme="light"] .meals-employee-picker {
   border-color: var(--border);
@@ -6428,7 +6605,8 @@ body {
   .stretch-page-header-badge {
     width: 46px;
     height: 46px;
-    border-radius: 50%;
+    font-size: 1.25rem;
+    border-radius: 12px;
   }
 
   .stretch-page-header-title {
@@ -6562,6 +6740,23 @@ body {
 @media (max-width: 768px) {
   .stats-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stats-stock-row {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-stock-value-row {
+    flex-wrap: wrap;
+  }
+
+  .stats-stock-sell-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .stats-sales-header {
+    flex-wrap: wrap;
   }
 
   .stats-period-btn {

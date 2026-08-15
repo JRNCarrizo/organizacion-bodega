@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react'
-import type { EmployeeStats, MonthlyStatsResult, DepotSettings } from '../../types'
+import type {
+  EmployeeStats,
+  MonthlyStatsResult,
+  DepotSettings,
+  StretchSale,
+  StretchStockResult
+} from '../../types'
 import { getDepotName } from '../../utils/depot'
 import { format, addMonths, subMonths } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -17,6 +23,11 @@ function getInitials(name: string): string {
     .slice(0, 2)
     .map(part => part[0]?.toUpperCase() ?? '')
     .join('')
+}
+
+function formatSaleDate(soldOn: string): string {
+  const [year, month, day] = soldOn.split('-').map(Number)
+  return format(new Date(year, month - 1, day), "d 'de' MMMM yyyy", { locale: es })
 }
 
 function capitalizeMonth(date: Date): string {
@@ -43,6 +54,11 @@ export default function StatsPanel({ refreshKey }: Props) {
     depot1Name: 'Depósito 1',
     depot2Name: 'Depósito 2'
   })
+  const [stock, setStock] = useState<StretchStockResult>({ current: 0, last_sale: null, sales: [] })
+  const [monthSales, setMonthSales] = useState<StretchSale[]>([])
+  const [confirmSale, setConfirmSale] = useState(false)
+  const [selling, setSelling] = useState(false)
+  const [saleMessage, setSaleMessage] = useState('')
 
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth() + 1
@@ -51,13 +67,23 @@ export default function StatsPanel({ refreshKey }: Props) {
     const statsPromise = period === 'month'
       ? window.api.stretch.getStats(year, month)
       : window.api.stretch.getAllTimeStats()
+    const salesPromise = period === 'month'
+      ? window.api.stretch.getSales(year, month)
+      : Promise.resolve(null)
 
-    Promise.all([statsPromise, window.api.settings.getDepotSettings()]).then(([data, depots]) => {
+    Promise.all([
+      statsPromise,
+      window.api.settings.getDepotSettings(),
+      window.api.stretch.getStock(),
+      salesPromise
+    ]).then(([data, depots, stockData, monthSaleRows]) => {
       const result = data as MonthlyStatsResult
       setStats(result.employees)
       setUniqueDaysWorked(result.unique_days_worked)
       setTotalStretchBalls(result.total_stretch_balls)
       setDepotSettings(depots)
+      setStock(stockData)
+      if (monthSaleRows) setMonthSales(monthSaleRows)
     })
   }, [period, year, month, refreshKey])
 
@@ -77,6 +103,34 @@ export default function StatsPanel({ refreshKey }: Props) {
 
   const getHeavyDays = (s: EmployeeStats) => heavyDepot === 1 ? s.depot1_days : s.depot2_days
   const getLightDays = (s: EmployeeStats) => heavyDepot === 1 ? s.depot2_days : s.depot1_days
+  const historySales = isMonthView ? monthSales : stock.sales
+  const monthSoldTotal = monthSales.reduce((sum, sale) => sum + sale.balls_count, 0)
+
+  const handleSellStock = async () => {
+    if (selling || stock.current <= 0) return
+    setSelling(true)
+    setSaleMessage('')
+    try {
+      const result = await window.api.stretch.sellStock()
+      if (!result.success) {
+        setSaleMessage(result.message)
+        setConfirmSale(false)
+        return
+      }
+      const [stockData, monthSaleRows] = await Promise.all([
+        window.api.stretch.getStock(),
+        isMonthView ? window.api.stretch.getSales(year, month) : Promise.resolve(null)
+      ])
+      setStock(stockData)
+      if (monthSaleRows) setMonthSales(monthSaleRows)
+      setSaleMessage(result.message)
+      setConfirmSale(false)
+    } catch (err) {
+      setSaleMessage(err instanceof Error ? err.message : 'No se pudo registrar la venta.')
+    } finally {
+      setSelling(false)
+    }
+  }
 
   return (
     <div className="stats-panel">
@@ -136,6 +190,68 @@ export default function StatsPanel({ refreshKey }: Props) {
           </div>
         )}
       </div>
+
+      <div className="stats-stock-row">
+        <section className="stats-stock-card">
+          <div className="stats-stock-main">
+            <span className="stats-stock-icon" aria-hidden="true">⚪</span>
+            <div className="stats-stock-copy">
+              <span className="stats-stock-kicker">Acumulado para venta</span>
+              <div className="stats-stock-value-row">
+                <span className="stats-stock-value">{stock.current}</span>
+                <button
+                  type="button"
+                  className="btn btn-primary stats-stock-sell-btn"
+                  onClick={() => setConfirmSale(true)}
+                  disabled={stock.current <= 0}
+                >
+                  Poner en cero
+                </button>
+              </div>
+              <p className="stats-stock-hint">Desde el último corte · no depende del mes</p>
+              {stock.last_sale && (
+                <p className="stats-stock-last">
+                  Último corte: {formatSaleDate(stock.last_sale.sold_on)} · {stock.last_sale.balls_count} bola{stock.last_sale.balls_count === 1 ? '' : 's'}
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className="stats-sales-card">
+          <div className="stats-sales-header">
+            <div>
+              <span className="stats-ranking-kicker">Registro de ventas</span>
+              <h3>{isMonthView ? `Cortes de ${capitalizeMonth(currentDate)}` : 'Todos los cortes'}</h3>
+            </div>
+            {isMonthView && (
+              <span className="stats-ranking-badge">
+                {monthSoldTotal} vendida{monthSoldTotal === 1 ? '' : 's'}
+              </span>
+            )}
+          </div>
+          {historySales.length === 0 ? (
+            <p className="stats-sales-empty">
+              {isMonthView ? 'En este mes todavía no hay cortes.' : 'Todavía no hay ventas registradas.'}
+            </p>
+          ) : (
+            <ul className="stats-sales-list">
+              {historySales.map(sale => (
+                <li key={sale.id} className="stats-sales-row">
+                  <span className="stats-sales-date">{formatSaleDate(sale.sold_on)}</span>
+                  <span className="stats-sales-count">{sale.balls_count} bola{sale.balls_count === 1 ? '' : 's'}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
+
+      {saleMessage && (
+        <div className={`alert ${saleMessage.startsWith('Se registró') ? 'alert-success' : 'alert-warning'}`}>
+          {saleMessage}
+        </div>
+      )}
 
       <div className="stats-summary">
         <div className="stats-summary-card stats-summary-balls">
@@ -268,6 +384,58 @@ export default function StatsPanel({ refreshKey }: Props) {
                 </div>
               )
             })}
+          </div>
+        </div>
+      )}
+
+      {confirmSale && (
+        <div
+          className="meal-modal-overlay"
+          onClick={() => !selling && setConfirmSale(false)}
+        >
+          <div
+            className="meal-modal schedule-holiday-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="stretch-sale-modal-title"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="meal-modal-header">
+              <div>
+                <span className="meal-modal-label">Venta de Stretch</span>
+                <h3 id="stretch-sale-modal-title">Poner el acumulado en cero</h3>
+                <p>
+                  Se registra una venta de <strong>{stock.current}</strong> bola{stock.current === 1 ? '' : 's'}
+                  y el contador vuelve a 0. Queda guardado en {capitalizeMonth(new Date())}.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="meal-modal-close"
+                onClick={() => !selling && setConfirmSale(false)}
+                aria-label="Cerrar"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="schedule-holiday-modal-actions">
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleSellStock}
+                disabled={selling}
+              >
+                {selling ? 'Guardando...' : 'Sí, registrar venta'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setConfirmSale(false)}
+                disabled={selling}
+              >
+                Cancelar
+              </button>
+            </div>
           </div>
         </div>
       )}

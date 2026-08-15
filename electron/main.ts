@@ -19,6 +19,9 @@ import {
   recordBalls,
   getMonthlyStats,
   getAllTimeStats,
+  getStretchStock,
+  sellStretchStock,
+  getStretchSalesForMonth,
   saveScheduleDay,
   getScheduleForMonth,
   getStretchHolidaysForMonth
@@ -155,6 +158,11 @@ ipcMain.handle('stretch:getStats', (_e, year: number, month: number) =>
   getMonthlyStats(year, month)
 )
 ipcMain.handle('stretch:getAllTimeStats', () => getAllTimeStats())
+ipcMain.handle('stretch:getStock', () => getStretchStock())
+ipcMain.handle('stretch:sellStock', () => sellStretchStock())
+ipcMain.handle('stretch:getSales', (_e, year: number, month: number) =>
+  getStretchSalesForMonth(year, month)
+)
 ipcMain.handle('stretch:generateSchedule', (_e, year: number, month: number) => {
   return generateMonthlySchedule(getStretchEmployees(), year, month)
 })

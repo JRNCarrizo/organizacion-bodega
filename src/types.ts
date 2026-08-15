@@ -105,6 +105,27 @@ export interface MonthlyStatsResult {
   total_stretch_balls: number
 }
 
+export interface StretchSale {
+  id: number
+  sold_on: string
+  year: number
+  month: number
+  balls_count: number
+  created_at: string
+}
+
+export interface StretchStockResult {
+  current: number
+  last_sale: StretchSale | null
+  sales: StretchSale[]
+}
+
+export interface StretchSaleResult {
+  success: boolean
+  message: string
+  sale?: StretchSale
+}
+
 export interface SupplyItem {
   id: number
   name: string

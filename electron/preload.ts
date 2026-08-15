@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { UpdateStatusPayload } from './updater'
+import type { StretchSale, StretchSaleResult, StretchStockResult } from '../src/types'
 
 const api = {
   app: {
@@ -49,6 +50,10 @@ const api = {
     getStats: (year: number, month: number) =>
       ipcRenderer.invoke('stretch:getStats', year, month),
     getAllTimeStats: () => ipcRenderer.invoke('stretch:getAllTimeStats'),
+    getStock: () => ipcRenderer.invoke('stretch:getStock') as Promise<StretchStockResult>,
+    sellStock: () => ipcRenderer.invoke('stretch:sellStock') as Promise<StretchSaleResult>,
+    getSales: (year: number, month: number) =>
+      ipcRenderer.invoke('stretch:getSales', year, month) as Promise<StretchSale[]>,
     generateSchedule: (year: number, month: number) =>
       ipcRenderer.invoke('stretch:generateSchedule', year, month),
     saveScheduleDay: (
