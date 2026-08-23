@@ -105,6 +105,39 @@ const api = {
       ipcRenderer.invoke('supplies:copyPrevious', year, month),
     deactivateItem: (id: number) => ipcRenderer.invoke('supplies:deactivateItem', id),
     exportPdf: (year: number, month: number) => ipcRenderer.invoke('supplies:exportPdf', year, month)
+  },
+  tactics: {
+    listBoards: () => ipcRenderer.invoke('tactics:listBoards'),
+    createBoard: (name: string) => ipcRenderer.invoke('tactics:createBoard', name),
+    renameBoard: (boardId: number, name: string) => ipcRenderer.invoke('tactics:renameBoard', boardId, name),
+    deleteBoard: (boardId: number) => ipcRenderer.invoke('tactics:deleteBoard', boardId),
+    getBoard: (boardId: number) => ipcRenderer.invoke('tactics:getBoard', boardId),
+    upsertPlacement: (boardId: number, employeeId: number, x: number, y: number) =>
+      ipcRenderer.invoke('tactics:upsertPlacement', boardId, employeeId, x, y),
+    movePlayer: (boardId: number, employeeId: number, x: number, y: number) =>
+      ipcRenderer.invoke('tactics:movePlayer', boardId, employeeId, x, y),
+    removePlacement: (boardId: number, employeeId: number) =>
+      ipcRenderer.invoke('tactics:removePlacement', boardId, employeeId),
+    clearBoard: (boardId: number) => ipcRenderer.invoke('tactics:clearBoard', boardId),
+    addArrow: (
+      boardId: number,
+      payload: {
+        x1: number
+        y1: number
+        x2: number
+        y2: number
+        curve?: number
+        style?: 'move' | 'pass' | 'press'
+        color?: string
+        from_employee_id?: number | null
+      }
+    ) => ipcRenderer.invoke('tactics:addArrow', boardId, payload),
+    updateArrow: (
+      arrowId: number,
+      updates: Partial<{ x1: number; y1: number; x2: number; y2: number; curve: number; style: 'move' | 'pass' | 'press'; color: string }>
+    ) => ipcRenderer.invoke('tactics:updateArrow', arrowId, updates),
+    deleteArrow: (arrowId: number) => ipcRenderer.invoke('tactics:deleteArrow', arrowId),
+    exportPng: (pngData: string) => ipcRenderer.invoke('tactics:exportPng', pngData)
   }
 }
 

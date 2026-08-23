@@ -172,3 +172,38 @@ export interface SupplyCopyResult {
   message: string
   copied: number
 }
+
+export interface TacticsBoard {
+  id: number
+  name: string
+  notes: string
+  updated_at: string
+}
+
+export interface TacticsPlacement {
+  id: number
+  board_id: number
+  employee_id: number
+  employee_name: string
+  x: number
+  y: number
+}
+
+export interface TacticsArrow {
+  id: number
+  board_id: number
+  x1: number
+  y1: number
+  x2: number
+  y2: number
+  curve: number
+  style: 'move' | 'pass' | 'press'
+  color: string
+  from_employee_id: number | null
+}
+
+export interface TacticsBoardView {
+  board: TacticsBoard
+  placements: TacticsPlacement[]
+  arrows: TacticsArrow[]
+}

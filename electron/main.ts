@@ -46,6 +46,22 @@ import {
   deactivateSupplyItem
 } from './supplies-database'
 import { exportSupplyOrderPdf } from './supplies-export'
+import {
+  initTacticsSchema,
+  listTacticsBoards,
+  createTacticsBoard,
+  renameTacticsBoard,
+  deleteTacticsBoard,
+  getTacticsBoard,
+  upsertTacticsPlacement,
+  moveTacticsPlayer,
+  removeTacticsPlacement,
+  clearTacticsBoard,
+  addTacticsArrow,
+  updateTacticsArrow,
+  deleteTacticsArrow
+} from './tactics-database'
+import { exportTacticsPng } from './tactics-export'
 import { bindUpdateWindow, registerUpdaterHandlers, checkForUpdatesOnStartup } from './updater'
 import { showFileInExplorer } from './shell-utils'
 
@@ -104,6 +120,7 @@ app.whenReady().then(() => {
   initDatabase()
   initMealsSchema()
   initSuppliesSchema()
+  initTacticsSchema()
   createWindow()
   checkForUpdatesOnStartup()
 
@@ -252,5 +269,52 @@ ipcMain.handle('supplies:deactivateItem', (_e, id: number) => {
   return true
 })
 ipcMain.handle('supplies:exportPdf', (_e, year: number, month: number) => exportSupplyOrderPdf(year, month))
+
+ipcMain.handle('tactics:listBoards', () => listTacticsBoards())
+ipcMain.handle('tactics:createBoard', (_e, name: string) => createTacticsBoard(name))
+ipcMain.handle('tactics:renameBoard', (_e, boardId: number, name: string) => renameTacticsBoard(boardId, name))
+ipcMain.handle('tactics:deleteBoard', (_e, boardId: number) => {
+  deleteTacticsBoard(boardId)
+  return true
+})
+ipcMain.handle('tactics:getBoard', (_e, boardId: number) => getTacticsBoard(boardId))
+ipcMain.handle('tactics:upsertPlacement', (_e, boardId: number, employeeId: number, x: number, y: number) =>
+  upsertTacticsPlacement(boardId, employeeId, x, y)
+)
+ipcMain.handle('tactics:movePlayer', (_e, boardId: number, employeeId: number, x: number, y: number) =>
+  moveTacticsPlayer(boardId, employeeId, x, y)
+)
+ipcMain.handle('tactics:removePlacement', (_e, boardId: number, employeeId: number) => {
+  removeTacticsPlacement(boardId, employeeId)
+  return true
+})
+ipcMain.handle('tactics:clearBoard', (_e, boardId: number) => {
+  clearTacticsBoard(boardId)
+  return true
+})
+ipcMain.handle('tactics:addArrow', (
+  _e,
+  boardId: number,
+    payload: {
+      x1: number
+      y1: number
+      x2: number
+      y2: number
+      curve?: number
+      style?: 'move' | 'pass' | 'press'
+      color?: string
+      from_employee_id?: number | null
+    }
+  ) => addTacticsArrow(boardId, payload))
+ipcMain.handle('tactics:updateArrow', (
+  _e,
+  arrowId: number,
+  updates: Partial<{ x1: number; y1: number; x2: number; y2: number; curve: number; style: 'move' | 'pass' | 'press'; color: string }>
+) => updateTacticsArrow(arrowId, updates))
+ipcMain.handle('tactics:deleteArrow', (_e, arrowId: number) => {
+  deleteTacticsArrow(arrowId)
+  return true
+})
+ipcMain.handle('tactics:exportPng', (_e, pngData: string) => exportTacticsPng(pngData))
 
 ipcMain.handle('app:showItemInFolder', (_e, filePath: string) => showFileInExplorer(filePath))

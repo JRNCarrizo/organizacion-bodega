@@ -4,6 +4,7 @@ import StretchBalls from './modules/stretch-balls/StretchBalls'
 import EmployeesPage from './modules/employees/EmployeesPage'
 import MealsPage from './modules/meals/MealsPage'
 import SuppliesPage from './modules/supplies/SuppliesPage'
+import TacticsPage from './modules/tactics/TacticsPage'
 import SettingsPage from './modules/settings/SettingsPage'
 import Sidebar from './components/Sidebar'
 import { applyTheme } from './lib/theme'
@@ -23,6 +24,7 @@ function App() {
             <Route path="/" element={<StretchBalls />} />
             <Route path="/comidas" element={<MealsPage />} />
             <Route path="/pedidos" element={<SuppliesPage />} />
+            <Route path="/tactica" element={<TacticsPage />} />
             <Route path="/configuracion" element={<SettingsPage />} />
           </Routes>
         </main>

@@ -8,7 +8,8 @@ const MODULE_LINKS = [
   { to: '/empleados', end: false, icon: '👥', label: 'Empleados' },
   { to: '/', end: true, icon: '♻️', label: 'Stretch' },
   { to: '/comidas', end: false, icon: '🍽️', label: 'Menú de Comidas' },
-  { to: '/pedidos', end: false, icon: '🛒', label: 'Pedidos' }
+  { to: '/pedidos', end: false, icon: '🛒', label: 'Pedidos' },
+  { to: '/tactica', end: false, icon: '⚽', label: 'Mi Equipo' }
 ] as const
 
 export default function Sidebar() {
