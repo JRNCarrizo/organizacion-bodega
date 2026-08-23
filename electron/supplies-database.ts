@@ -28,6 +28,7 @@ export interface SupplyOrderView {
   year: number
   month: number
   notes: string
+  issued_at: string | null
   lines: SupplyOrderLineView[]
   previous: { year: number; month: number } | null
 }
@@ -37,10 +38,32 @@ export interface SupplyHistoryMonth {
   month: number
   line_count: number
   requested_count: number
+  issued_at: string | null
 }
 
 function monthKey(year: number, month: number): number {
   return year * 12 + month
+}
+
+function todayLocalDate(): string {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+}
+
+function normalizeIssuedAt(value: string | null | undefined): string | null {
+  if (!value) return null
+  const trimmed = value.trim()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return null
+  const [year, month, day] = trimmed.split('-').map(Number)
+  const date = new Date(year, month - 1, day)
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null
+  }
+  return trimmed
 }
 
 export function initSuppliesSchema(): void {
@@ -59,6 +82,7 @@ export function initSuppliesSchema(): void {
       year INTEGER NOT NULL,
       month INTEGER NOT NULL,
       notes TEXT NOT NULL DEFAULT '',
+      issued_at TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
       UNIQUE(year, month)
     );
@@ -77,6 +101,11 @@ export function initSuppliesSchema(): void {
       UNIQUE(order_id, item_id)
     );
   `)
+
+  const columns = database.prepare('PRAGMA table_info(supply_orders)').all() as Array<{ name: string }>
+  if (!columns.some(column => column.name === 'issued_at')) {
+    database.exec('ALTER TABLE supply_orders ADD COLUMN issued_at TEXT')
+  }
 }
 
 export function getSupplyItems(): SupplyItem[] {
@@ -154,14 +183,16 @@ export function deactivateSupplyItem(id: number): void {
   database.prepare('UPDATE supply_items SET active = 0 WHERE id = ?').run(id)
 }
 
-function getOrderRow(year: number, month: number): { id: number; notes: string } | undefined {
+function getOrderRow(year: number, month: number): { id: number; notes: string; issued_at: string | null } | undefined {
   const database = initDatabase()
-  return database.prepare(`
-    SELECT id, notes FROM supply_orders WHERE year = ? AND month = ?
-  `).get(year, month) as { id: number; notes: string } | undefined
+  const row = database.prepare(`
+    SELECT id, notes, issued_at FROM supply_orders WHERE year = ? AND month = ?
+  `).get(year, month) as { id: number; notes: string; issued_at: string | null } | undefined
+  if (!row) return undefined
+  return { ...row, issued_at: normalizeIssuedAt(row.issued_at) }
 }
 
-function ensureOrder(year: number, month: number): { id: number; notes: string } {
+function ensureOrder(year: number, month: number): { id: number; notes: string; issued_at: string | null } {
   const existing = getOrderRow(year, month)
   if (existing) return existing
 
@@ -170,7 +201,7 @@ function ensureOrder(year: number, month: number): { id: number; notes: string }
     INSERT INTO supply_orders (year, month) VALUES (?, ?)
   `).run(year, month)
 
-  return { id: Number(result.lastInsertRowid), notes: '' }
+  return { id: Number(result.lastInsertRowid), notes: '', issued_at: null }
 }
 
 function getPreviousOrderRef(year: number, month: number): { year: number; month: number } | null {
@@ -215,7 +246,7 @@ export function getSupplyOrder(year: number, month: number): SupplyOrderView {
   const previous = getPreviousOrderRef(year, month)
 
   if (!order) {
-    return { id: null, year, month, notes: '', lines: [], previous }
+    return { id: null, year, month, notes: '', issued_at: null, lines: [], previous }
   }
 
   const rows = database.prepare(`
@@ -252,6 +283,7 @@ export function getSupplyOrder(year: number, month: number): SupplyOrderView {
     year,
     month,
     notes: order.notes,
+    issued_at: order.issued_at,
     lines,
     previous
   }
@@ -259,23 +291,56 @@ export function getSupplyOrder(year: number, month: number): SupplyOrderView {
 
 export function getSupplyHistory(): SupplyHistoryMonth[] {
   const database = initDatabase()
-  return database.prepare(`
+  const rows = database.prepare(`
     SELECT
       o.year,
       o.month,
+      o.issued_at,
       COUNT(l.id) AS line_count,
       SUM(CASE WHEN l.requested = 1 THEN 1 ELSE 0 END) AS requested_count
     FROM supply_orders o
     JOIN supply_order_lines l ON l.order_id = o.id
     GROUP BY o.id
     ORDER BY o.year DESC, o.month DESC
-  `).all() as SupplyHistoryMonth[]
+  `).all() as Array<{
+    year: number
+    month: number
+    issued_at: string | null
+    line_count: number
+    requested_count: number
+  }>
+
+  return rows.map(row => ({
+    ...row,
+    issued_at: normalizeIssuedAt(row.issued_at)
+  }))
 }
 
 export function setSupplyOrderNotes(year: number, month: number, notes: string): void {
   const order = ensureOrder(year, month)
   const database = initDatabase()
   database.prepare('UPDATE supply_orders SET notes = ? WHERE id = ?').run(notes, order.id)
+}
+
+export function setSupplyOrderIssuedAt(year: number, month: number, issuedAt: string | null): string | null {
+  const order = ensureOrder(year, month)
+  const normalized = issuedAt === null || issuedAt === '' ? null : normalizeIssuedAt(issuedAt)
+  if (issuedAt && !normalized) {
+    throw new Error('La fecha de emisión no es válida.')
+  }
+  const database = initDatabase()
+  database.prepare('UPDATE supply_orders SET issued_at = ? WHERE id = ?').run(normalized, order.id)
+  return normalized
+}
+
+/** Guarda la fecha de emisión si el pedido todavía no la tiene (primera exportación). */
+export function ensureSupplyOrderIssuedAt(year: number, month: number): string {
+  const order = ensureOrder(year, month)
+  if (order.issued_at) return order.issued_at
+  const issuedAt = todayLocalDate()
+  const database = initDatabase()
+  database.prepare('UPDATE supply_orders SET issued_at = ? WHERE id = ?').run(issuedAt, order.id)
+  return issuedAt
 }
 
 export function addSupplyLine(

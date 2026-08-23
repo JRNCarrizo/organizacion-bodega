@@ -7107,6 +7107,56 @@ body {
   background: rgba(249, 115, 22, 0.16);
 }
 
+.supplies-stat-issued {
+  position: relative;
+  border-color: rgba(59, 130, 246, 0.35);
+  background:
+    linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, transparent 70%),
+    var(--bg-card);
+}
+
+.supplies-stat-issued .supplies-stat-icon {
+  background: rgba(59, 130, 246, 0.18);
+  width: 100%;
+  height: 100%;
+}
+
+.supplies-stat-issued-set {
+  border-color: rgba(34, 197, 94, 0.4);
+}
+
+.supplies-issued-picker {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.supplies-issued-picker:hover .supplies-stat-icon {
+  background: rgba(59, 130, 246, 0.28);
+}
+
+.supplies-issued-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .supplies-stat-value {
   display: block;
   font-size: 1.45rem;

@@ -32,6 +32,12 @@ function lastLabel(line: SupplyOrderLineView): string | null {
   return `Antes: ${formatQty(line.last_quantity)}${unit} (${MONTH_NAMES[line.last_month - 1].slice(0, 3)} ${line.last_year})`
 }
 
+function formatIssuedDisplay(value: string | null | undefined): string {
+  if (!value) return 'Sin emitir'
+  const [year, month, day] = value.split('-').map(Number)
+  return format(new Date(year, month - 1, day), 'dd/MM/yyyy')
+}
+
 export default function SuppliesPage() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [order, setOrder] = useState<SupplyOrderView | null>(null)
@@ -46,6 +52,7 @@ export default function SuppliesPage() {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const historyRef = useRef<HTMLDivElement>(null)
+  const issuedInputRef = useRef<HTMLInputElement>(null)
   const { refreshKey } = useAppRefresh()
 
   const year = currentDate.getFullYear()
@@ -174,6 +181,16 @@ export default function SuppliesPage() {
     await load()
   }
 
+  const handleIssuedAtChange = async (value: string) => {
+    setError('')
+    try {
+      await window.api.supplies.setIssuedAt(year, month, value || null)
+      await load()
+    } catch (err) {
+      setError(ipcError(err, 'No se pudo guardar la fecha de emisión.'))
+    }
+  }
+
   const handleExport = async () => {
     setExporting(true)
     setError('')
@@ -183,6 +200,7 @@ export default function SuppliesPage() {
       if (result.success) {
         setMessage(result.message)
         if (result.filePath) setLastExportPath(result.filePath)
+        await load()
       } else if (result.message !== 'Exportación cancelada.') {
         setError(result.message)
       }
@@ -216,6 +234,7 @@ export default function SuppliesPage() {
           <p>Cargá los productos una vez. Quedan en el catálogo para los meses siguientes.</p>
           <p>Si ya hay stock, marcá <strong>Hay stock</strong> para no pedirlo este mes.</p>
           <p><strong>Usar pedido anterior</strong> copia la lista del último mes. Después ajustás cantidades.</p>
+          <p>La <strong>fecha de emisión</strong> se guarda al exportar el PDF, o la podés elegir con el calendario.</p>
           <p>Exportá el PDF para entregar el listado de mercadería mensual a Recursos Humanos.</p>
         </SettingsInfoButton>
       </header>
@@ -301,11 +320,41 @@ export default function SuppliesPage() {
             <span className="supplies-stat-label">Hay stock</span>
           </div>
         </div>
-        <div className="supplies-stat">
-          <span className="supplies-stat-icon" aria-hidden="true">📦</span>
+        <div className={`supplies-stat supplies-stat-issued ${order?.issued_at ? 'supplies-stat-issued-set' : ''}`}>
+          <button
+            type="button"
+            className="supplies-issued-picker"
+            title="Elegir fecha de emisión"
+            aria-label="Elegir fecha de emisión"
+            onClick={() => {
+              const input = issuedInputRef.current
+              if (!input) return
+              try {
+                if (typeof input.showPicker === 'function') {
+                  input.showPicker()
+                  return
+                }
+              } catch {
+                // Algunos navegadores bloquean showPicker fuera de gesto directo.
+              }
+              input.focus()
+              input.click()
+            }}
+          >
+            <span className="supplies-stat-icon" aria-hidden="true">📅</span>
+          </button>
+          <input
+            ref={issuedInputRef}
+            type="date"
+            className="supplies-issued-input"
+            value={order?.issued_at ?? ''}
+            onChange={event => void handleIssuedAtChange(event.target.value)}
+            tabIndex={-1}
+            aria-hidden="true"
+          />
           <div>
-            <span className="supplies-stat-value">{items.length}</span>
-            <span className="supplies-stat-label">Guardados</span>
+            <span className="supplies-stat-value">{formatIssuedDisplay(order?.issued_at)}</span>
+            <span className="supplies-stat-label">Fecha de emisión</span>
           </div>
         </div>
       </div>
@@ -527,7 +576,10 @@ export default function SuppliesPage() {
                   onClick={() => setCurrentDate(new Date(entry.year, entry.month - 1, 1))}
                 >
                   <strong>{MONTH_NAMES[entry.month - 1]} {entry.year}</strong>
-                  <span>{entry.requested_count} a pedir</span>
+                  <span>
+                    {entry.requested_count} a pedir
+                    {entry.issued_at ? ` · emitido ${formatIssuedDisplay(entry.issued_at)}` : ''}
+                  </span>
                 </button>
               )
             })}

@@ -2,7 +2,7 @@ import { dialog } from 'electron'
 import fs from 'fs'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import { getSupplyOrder } from './supplies-database'
+import { getSupplyOrder, ensureSupplyOrderIssuedAt } from './supplies-database'
 
 const MONTH_NAMES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -20,8 +20,9 @@ function formatQuantity(value: number): string {
   return Number.isInteger(value) ? String(value) : String(value).replace('.', ',')
 }
 
-function formatIssuedAt(): string {
-  return new Date().toLocaleDateString('es-AR', {
+function formatIssuedAt(value: string): string {
+  const [year, month, day] = value.split('-').map(Number)
+  return new Date(year, month - 1, day).toLocaleDateString('es-AR', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric'
@@ -47,6 +48,7 @@ export async function exportSupplyOrderPdf(year: number, month: number): Promise
     return { success: false, message: 'Exportación cancelada.' }
   }
 
+  const issuedAt = ensureSupplyOrderIssuedAt(year, month)
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
 
   doc.setFont('helvetica', 'bold')
@@ -60,7 +62,7 @@ export async function exportSupplyOrderPdf(year: number, month: number): Promise
   doc.setFontSize(10)
   doc.setTextColor(70)
   doc.text(`Período: ${monthName} ${year}`, 14, 34)
-  doc.text(`Fecha de emisión: ${formatIssuedAt()}`, 14, 39)
+  doc.text(`Fecha de emisión: ${formatIssuedAt(issuedAt)}`, 14, 39)
   doc.text(`Ítems solicitados: ${requested.length}`, 14, 44)
 
   if (order.notes.trim()) {

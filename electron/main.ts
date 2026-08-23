@@ -41,6 +41,7 @@ import {
   updateSupplyLine,
   removeSupplyLine,
   setSupplyOrderNotes,
+  setSupplyOrderIssuedAt,
   copyPreviousSupplyOrder,
   deactivateSupplyItem
 } from './supplies-database'
@@ -240,6 +241,9 @@ ipcMain.handle('supplies:setNotes', (_e, year: number, month: number, notes: str
   setSupplyOrderNotes(year, month, notes)
   return true
 })
+ipcMain.handle('supplies:setIssuedAt', (_e, year: number, month: number, issuedAt: string | null) =>
+  setSupplyOrderIssuedAt(year, month, issuedAt)
+)
 ipcMain.handle('supplies:copyPrevious', (_e, year: number, month: number) =>
   copyPreviousSupplyOrder(year, month)
 )

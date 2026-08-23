@@ -154,6 +154,7 @@ export interface SupplyOrderView {
   year: number
   month: number
   notes: string
+  issued_at: string | null
   lines: SupplyOrderLineView[]
   previous: { year: number; month: number } | null
 }
@@ -163,6 +164,7 @@ export interface SupplyHistoryMonth {
   month: number
   line_count: number
   requested_count: number
+  issued_at: string | null
 }
 
 export interface SupplyCopyResult {

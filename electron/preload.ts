@@ -99,6 +99,8 @@ const api = {
     removeLine: (lineId: number) => ipcRenderer.invoke('supplies:removeLine', lineId),
     setNotes: (year: number, month: number, notes: string) =>
       ipcRenderer.invoke('supplies:setNotes', year, month, notes),
+    setIssuedAt: (year: number, month: number, issuedAt: string | null) =>
+      ipcRenderer.invoke('supplies:setIssuedAt', year, month, issuedAt) as Promise<string | null>,
     copyPrevious: (year: number, month: number) =>
       ipcRenderer.invoke('supplies:copyPrevious', year, month),
     deactivateItem: (id: number) => ipcRenderer.invoke('supplies:deactivateItem', id),
