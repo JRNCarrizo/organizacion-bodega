@@ -262,8 +262,29 @@ function getWeekdayLabel(dateStr: string): string {
   return WEEKDAY_NAMES[new Date(y, m - 1, d).getDay()]
 }
 
-function isNewCateringFormat(text: string): boolean {
+function isCombinedOptionsCateringFormat(text: string): boolean {
   return /Categor[ií]a\s+Opci[oó]n\s+1\s+Opci[oó]n\s+2/i.test(text)
+}
+
+/** Formato Septiembre+: cada opción en su propia línea (Carne×2, Pollo×2, …). */
+function isSplitOptionsCateringFormat(text: string): boolean {
+  if (isCombinedOptionsCateringFormat(text)) return false
+  const lines = text.split('\n').map(normalizeLine).filter(Boolean)
+  let prevWasCarne = false
+  for (const line of lines) {
+    if (PAGE_BREAK.test(line)) {
+      prevWasCarne = false
+      continue
+    }
+    const isCarne = /^[\u{1F300}-\u{1FAFF}]?\s*Carne\s+/iu.test(line)
+    if (isCarne && prevWasCarne) return true
+    prevWasCarne = isCarne
+  }
+  return false
+}
+
+function isNewCateringFormat(text: string): boolean {
+  return isCombinedOptionsCateringFormat(text)
     || /^[\u{1F300}-\u{1FAFF}]?\s*Carne\s+/mu.test(text)
 }
 
@@ -372,8 +393,11 @@ function stripRepeatedCategoryPrefix(content: string, category: MealCategory): s
     return result
   }
   if (category === 'PASTAS') {
-    return result.replace(/^Pasta\s+(?:simple|rellena)\s+/i, '')
+    return result
+      .replace(/^Pasta\s+(?:simple|rellena)\s+/i, '')
+      .replace(/^Pasta\s+/i, '')
   }
+  // No sacar "Carne/Pollo/…" del plato ("Carne al Horno", "Pollo grille…")
   return result
 }
 
@@ -434,6 +458,103 @@ function extractCategoryLines(lines: string[]): string[] {
     if (NEW_FORMAT_CATEGORY_ROW.test(line)) rows.push(line)
   }
   return rows
+}
+
+const SPLIT_DAY_LABEL =
+  /^(LUNES|MARTES|MI[EÉ]RCOLES|JUEVES|VIERNES|S[AÁ]BADO|DOMINGO)\s+(\d{1,2})\s*\/\s*(\d{1,2})\b/i
+
+function extractSplitDayLabels(lines: string[]): Array<{ weekday: string; day: number; month: number }> {
+  const labels: Array<{ weekday: string; day: number; month: number }> = []
+  for (const line of lines) {
+    const match = line.match(SPLIT_DAY_LABEL)
+    if (!match) continue
+    labels.push({
+      weekday: match[1]
+        .toUpperCase()
+        .replace('MIÉRCOLES', 'MIERCOLES')
+        .replace('SÁBADO', 'SABADO'),
+      day: parseInt(match[2], 10),
+      month: parseInt(match[3], 10)
+    })
+  }
+  return labels
+}
+
+/** Una línea = una opción (formato Septiembre+). */
+function parseSplitCategoryLine(line: string): ParsedMealOption | null {
+  const match = line.match(NEW_FORMAT_CATEGORY_ROW)
+  if (!match) return null
+  const category = mapCategory(match[1])
+  const description = stripRepeatedCategoryPrefix(match[2].trim(), category)
+  if (!description) return null
+  return { category, description, optionIndex: 1 }
+}
+
+function groupSplitDayMenus(categoryLines: string[]): ParsedMealOption[][] {
+  const menus: ParsedMealOption[][] = []
+  let current: ParsedMealOption[] = []
+
+  for (const line of categoryLines) {
+    const parsed = parseSplitCategoryLine(line)
+    if (!parsed) continue
+
+    const carneCount = current.filter(option => option.category === 'CARNE').length
+    const startedOtherCategories = current.some(option => option.category !== 'CARNE')
+    if (
+      parsed.category === 'CARNE'
+      && current.length > 0
+      && (carneCount >= 2 || startedOtherCategories)
+    ) {
+      menus.push(current)
+      current = []
+    }
+
+    const optionIndex = current.filter(option => option.category === parsed.category).length + 1
+    current.push({ ...parsed, optionIndex })
+  }
+
+  if (current.length > 0) menus.push(current)
+  return menus
+}
+
+function parseSplitOptionsMenuText(text: string, year: number, month: number): ParsedMealDay[] {
+  const lines = text.split('\n').map(normalizeLine).filter(Boolean)
+  const skipDays = extractSkipDays(lines)
+  const serviceDays = getServiceDays(year, month, skipDays)
+  const categoryLines = extractCategoryLines(lines)
+  const menus = groupSplitDayMenus(categoryLines)
+  const dayLabels = extractSplitDayLabels(lines)
+
+  const result: ParsedMealDay[] = []
+
+  if (dayLabels.length > 0) {
+    const count = Math.min(menus.length, dayLabels.length)
+    for (let i = 0; i < count; i++) {
+      const label = dayLabels[i]
+      const labelYear = label.month === 1 && month === 12 ? year + 1 : year
+      const date =
+        `${labelYear}-${String(label.month).padStart(2, '0')}-${String(label.day).padStart(2, '0')}`
+      result.push({
+        date,
+        weekday: getWeekdayLabel(date),
+        dayNum: label.day,
+        options: menus[i]
+      })
+    }
+    return result.sort((a, b) => a.date.localeCompare(b.date))
+  }
+
+  const count = Math.min(menus.length, serviceDays.length)
+  for (let i = 0; i < count; i++) {
+    const date = serviceDays[i]
+    result.push({
+      date,
+      weekday: getWeekdayLabel(date),
+      dayNum: parseInt(date.split('-')[2], 10),
+      options: menus[i]
+    })
+  }
+  return result
 }
 
 function parseNewCateringMenuText(text: string, year: number, month: number): ParsedMealDay[] {
@@ -699,6 +820,9 @@ function parseLegacyCateringMenuText(text: string, year: number, month: number):
 }
 
 export function parseCateringMenuText(text: string, year: number, month: number): ParsedMealDay[] {
+  if (isSplitOptionsCateringFormat(text)) {
+    return parseSplitOptionsMenuText(text, year, month)
+  }
   if (isNewCateringFormat(text)) {
     return parseNewCateringMenuText(text, year, month)
   }

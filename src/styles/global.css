@@ -7612,6 +7612,37 @@ body {
   touch-action: none;
 }
 
+.tactics-player-nametip {
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.tactics-player:hover .tactics-player-nametip,
+.tactics-player-selected .tactics-player-nametip {
+  opacity: 1;
+}
+
+.tactics-player-dragging .tactics-player-nametip {
+  opacity: 0;
+}
+
+.tactics-player-nametip-bg {
+  fill: rgba(15, 23, 42, 0.92);
+  stroke: rgba(248, 250, 252, 0.22);
+  stroke-width: 0.2;
+}
+
+.tactics-player-nametip-text {
+  fill: #f8fafc;
+  font-size: 2.05px;
+  font-weight: 700;
+  font-family: inherit;
+}
+
+.tactics-player-nametip-text-long {
+  font-size: 1.7px;
+}
+
 .tactics-player-dragging {
   opacity: 1;
   cursor: grabbing;

@@ -46,6 +46,7 @@ const EXPORT_SVG_STYLE = `
     font-family: Segoe UI, Arial, sans-serif;
   }
   .tactics-player-initials-long { font-size: 1.95px; }
+  .tactics-player-nametip { display: none; }
 `
 
 const DIRECTIONS: Array<{ key: DirectionKey; label: string; dx: number; dy: number }> = [
@@ -939,7 +940,23 @@ export default function TacticsPage() {
                   >
                     {initialsById.get(player.employee_id) ?? '?'}
                   </text>
-                  <title>{player.employee_name}</title>
+                  <g className="tactics-player-nametip" pointerEvents="none">
+                    <rect
+                      className="tactics-player-nametip-bg"
+                      x={-Math.min(28, Math.max(10, player.employee_name.length * 1.15)) / 2}
+                      y="-9.4"
+                      width={Math.min(28, Math.max(10, player.employee_name.length * 1.15))}
+                      height="3.6"
+                      rx="0.9"
+                    />
+                    <text
+                      y="-6.85"
+                      textAnchor="middle"
+                      className={`tactics-player-nametip-text${player.employee_name.length > 18 ? ' tactics-player-nametip-text-long' : ''}`}
+                    >
+                      {player.employee_name}
+                    </text>
+                  </g>
                 </g>
               ))}
             </svg>
