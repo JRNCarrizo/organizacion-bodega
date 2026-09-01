@@ -517,23 +517,53 @@ function groupSplitDayMenus(categoryLines: string[]): ParsedMealOption[][] {
   return menus
 }
 
+function sortDayLabels(labels: Array<{ weekday: string; day: number; month: number }>) {
+  return [...labels].sort((a, b) => {
+    if (a.month !== b.month) return a.month - b.month
+    return a.day - b.day
+  })
+}
+
+function labelToDate(
+  label: { day: number; month: number },
+  importYear: number,
+  importMonth: number
+): string {
+  const labelYear = label.month === 1 && importMonth === 12 ? importYear + 1 : importYear
+  return `${labelYear}-${String(label.month).padStart(2, '0')}-${String(label.day).padStart(2, '0')}`
+}
+
+function splitLinesByPage(lines: string[]): string[][] {
+  const pages: string[][] = []
+  let current: string[] = []
+  for (const line of lines) {
+    if (PAGE_BREAK.test(line)) {
+      if (current.length > 0) pages.push(current)
+      current = []
+    } else {
+      current.push(line)
+    }
+  }
+  if (current.length > 0) pages.push(current)
+  return pages
+}
+
 function parseSplitOptionsMenuText(text: string, year: number, month: number): ParsedMealDay[] {
   const lines = text.split('\n').map(normalizeLine).filter(Boolean)
   const skipDays = extractSkipDays(lines)
   const serviceDays = getServiceDays(year, month, skipDays)
-  const categoryLines = extractCategoryLines(lines)
-  const menus = groupSplitDayMenus(categoryLines)
-  const dayLabels = extractSplitDayLabels(lines)
-
   const result: ParsedMealDay[] = []
 
-  if (dayLabels.length > 0) {
-    const count = Math.min(menus.length, dayLabels.length)
+  // Por página: bloques de menú arriba, fechas abajo (a veces desordenadas en el PDF).
+  for (const pageLines of splitLinesByPage(lines)) {
+    const menus = groupSplitDayMenus(extractCategoryLines(pageLines))
+    const labels = sortDayLabels(extractSplitDayLabels(pageLines))
+    if (menus.length === 0 || labels.length === 0) continue
+
+    const count = Math.min(menus.length, labels.length)
     for (let i = 0; i < count; i++) {
-      const label = dayLabels[i]
-      const labelYear = label.month === 1 && month === 12 ? year + 1 : year
-      const date =
-        `${labelYear}-${String(label.month).padStart(2, '0')}-${String(label.day).padStart(2, '0')}`
+      const label = labels[i]
+      const date = labelToDate(label, year, month)
       result.push({
         date,
         weekday: getWeekdayLabel(date),
@@ -541,9 +571,14 @@ function parseSplitOptionsMenuText(text: string, year: number, month: number): P
         options: menus[i]
       })
     }
+  }
+
+  if (result.length > 0) {
     return result.sort((a, b) => a.date.localeCompare(b.date))
   }
 
+  // Fallback sin etiquetas de fecha en el PDF
+  const menus = groupSplitDayMenus(extractCategoryLines(lines))
   const count = Math.min(menus.length, serviceDays.length)
   for (let i = 0; i < count; i++) {
     const date = serviceDays[i]
